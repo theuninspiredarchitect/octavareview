@@ -204,6 +204,7 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
 .inline-text-editor{position:absolute;z-index:3;border:1px solid #6b9dff;background:#fffffff5;box-shadow:0 0 0 2px #6b9dff22;touch-action:auto;user-select:text}.inline-text-editor textarea{display:block;width:100%;background:transparent!important;border:none!important;outline:none;padding:0;margin:0;resize:none;overflow:hidden;font-family:Arial,sans-serif;font-weight:500;box-shadow:none}.task-plan-context .preview-placeholder{height:210px}
 
 .navigation-subheader .review-actions,.navigation-subheader .breadcrumbs>.icon-button{display:none}
+.overview-nav{display:flex;align-items:center;gap:3px;flex-shrink:0}.overview-nav .icon-button{width:auto;padding:0 8px;gap:6px;font-size:12px;color:#aaa}.overview-nav .icon-button:hover{color:#eee;background:#414141}
 .mobile-tools-toggle{display:none}
 @media(max-width:760px){
  .mobile-tools-toggle{position:absolute;z-index:9;left:8px;top:42px;height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #505050;border-radius:3px;background:#2b2b2bf2;color:#d0d0d0;font-size:12px;box-shadow:0 3px 12px #0005}
@@ -219,8 +220,13 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .markup-toolbar.mobile-open{display:flex;grid-template-columns:none;width:auto;max-height:none}.brush-control.mobile-open{left:8px;width:42px}.measure-options{top:128px}.drawing-stage:has(.area-mode-options) .measure-options{top:128px}
 }
 @media(max-width:760px){
+ .drawing-stage:has(.markup-toolbar.mobile-open) .undo-controls{top:42px}
+ .canvas-context{transform:none}
+}
+@media(max-width:760px){
  [data-slot=select-content]{max-width:calc(100vw - 16px)}
- .workspace-subheader:not(.navigation-subheader){display:grid;grid-template-columns:minmax(58px,1fr) auto;gap:5px;padding-left:7px;padding-right:7px}
+ .workspace-subheader:not(.navigation-subheader){display:grid;grid-template-columns:auto minmax(32px,1fr) auto;gap:5px;padding-left:7px;padding-right:7px}
+ .overview-nav{gap:1px}.overview-nav .icon-button{width:32px;min-width:32px;padding:0}.overview-nav .icon-button span{display:none}
  .workspace-subheader:not(.navigation-subheader) .breadcrumbs{gap:5px;overflow:hidden}
  .workspace-subheader:not(.navigation-subheader) .breadcrumbs>button:not(.icon-button),.workspace-subheader:not(.navigation-subheader) .breadcrumbs>svg,.workspace-subheader:not(.navigation-subheader) .breadcrumbs>.muted,.workspace-subheader:not(.navigation-subheader) .revision-badge{display:none}
  .workspace-subheader:not(.navigation-subheader) .review-actions{min-width:0;gap:3px}
@@ -231,4 +237,10 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .board-columns,.board-columns>section,.board-columns .task-card{min-width:0;max-width:100%}
  .review-panel{overflow-x:hidden}
  .task-card,.task-card h3,.task-card p{overflow-wrap:anywhere}
+ [data-slot=dialog-content].task-dialog,.task-modal-columns,.task-information,.task-conversation,.task-fields,.chat-messages,.task-attachment-gallery{min-width:0;max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
+ [data-slot=dialog-content].task-dialog{touch-action:pan-y}
+ .task-modal-columns{width:100%;touch-action:pan-y}
+ .task-fields .form-grid{grid-template-columns:minmax(0,1fr)}
+ .task-fields label,.task-fields input,.task-fields textarea,.task-fields .choice{min-width:0;max-width:100%;width:100%}
+ .conversation-filters{flex-wrap:wrap}
 }
