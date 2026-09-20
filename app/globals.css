@@ -202,6 +202,7 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
 @media(pointer:coarse){.area-mode-options button,.text-options button{min-height:36px;min-width:35px}.area-mode-options{top:42px}.drawing-stage:has(.area-mode-options) .measure-options{top:89px}.drawing-stage:has(.area-mode-options) .undo-controls{top:140px}.plan-open-badge{opacity:1}.composer-actions .icon-button{width:40px;height:40px}.send-message{height:40px;width:40px}}
 
 .inline-text-editor{position:absolute;z-index:3;border:1px solid #6b9dff;background:#fffffff5;box-shadow:0 0 0 2px #6b9dff22;touch-action:auto;user-select:text}.inline-text-editor textarea{display:block;width:100%;background:transparent!important;border:none!important;outline:none;padding:0;margin:0;resize:none;overflow:hidden;font-family:Arial,sans-serif;font-weight:500;box-shadow:none}.task-plan-context .preview-placeholder{height:210px}
+.mobile-task-tabs{display:none}
 
 .navigation-subheader .review-actions,.navigation-subheader .breadcrumbs>.icon-button{display:none}
 .overview-nav{display:flex;align-items:center;gap:3px;flex-shrink:0}.overview-nav .icon-button{width:auto;padding:0 8px;gap:6px;font-size:12px;color:#aaa}.overview-nav .icon-button:hover{color:#eee;background:#414141}
@@ -241,6 +242,12 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .export-button{display:none!important}
  .overview-nav .icon-button{width:auto;min-width:34px;padding:0 7px}.overview-nav .icon-button span{display:inline;font-size:12px}
  .navigation-subheader{grid-template-columns:auto 1fr}.navigation-subheader .breadcrumbs{display:none}
+ .mobile-task-tabs{display:flex;flex-shrink:0;border-bottom:1px solid #414141;background:#242424;padding:0 14px;gap:4px}
+ .mobile-task-tabs button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:42px;padding:0 9px;color:#929292;font-size:12px;border-bottom:2px solid transparent}
+ .mobile-task-tabs button.active{color:#eee;border-bottom-color:#6b9dff}.mobile-task-tabs button span{font-size:10px;color:#888}
+ .task-modal-columns.panel-details .task-conversation{display:none}.task-modal-columns:not(.panel-details) .task-information{display:none}
+ .task-dialog .conversation-header{display:none}
+ .task-modal-columns:not(.panel-details) .task-conversation{min-height:0;flex:1}
 }
 @media(max-width:760px){
  [data-slot=select-content]{max-width:calc(100vw - 16px)}
