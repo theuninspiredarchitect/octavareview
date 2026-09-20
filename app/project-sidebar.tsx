@@ -1,8 +1,8 @@
 "use client";
-import {ArrowLeft,BookOpen,Camera,CheckCheck,ChevronDown,ClipboardList,FolderOpen,Heart,HelpCircle,Layers,Paperclip,UserRound,Users} from 'lucide-react';
+import {ArrowLeft,BookOpen,Camera,CheckCheck,ChevronDown,ClipboardList,FolderOpen,Heart,HelpCircle,Layers,Paperclip,Presentation,UserRound,Users} from 'lucide-react';
 import {Choice} from './review-controls';
 import type {Project} from '@/lib/review-types';
-export const projectSections=[{id:'plans',label:'Plans',icon:Layers},{id:'tasks',label:'Tasks',icon:ClipboardList},{id:'photos',label:'Photos',icon:Camera},{id:'files',label:'Files',icon:Paperclip},{id:'specifications',label:'Specifications',icon:BookOpen}];
+export const projectSections=[{id:'plans',label:'Plans',icon:Layers},{id:'tasks',label:'Tasks',icon:ClipboardList},{id:'photos',label:'Photos',icon:Camera},{id:'presentations',label:'Presentations',icon:Presentation},{id:'files',label:'Files',icon:Paperclip},{id:'specifications',label:'Specifications',icon:BookOpen}];
 export const photoSections=[{id:'all',label:'All photos',icon:Camera},{id:'mine',label:'My photos',icon:UserRound},{id:'liked',label:'Liked photos',icon:Heart}];
 export default function ProjectSidebar({view,onView,projectId,projects,projectName,onProject,photoFilter,onPhotoFilter,onPeople,onAccount,onHelp,canManage,name,saved}:{view:string;onView:(v:string)=>void;projectId:string;projects:Project[];projectName:string;onProject:(id:string)=>void;photoFilter:string;onPhotoFilter:(v:string)=>void;onPeople:()=>void;onAccount:()=>void;onHelp:()=>void;canManage:boolean;name:string;saved:string}){
  const compact=view==='drawings';

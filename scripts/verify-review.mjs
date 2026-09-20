@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 import assert from 'node:assert/strict';
+import {verifyPortal} from './verify-portal.mjs';
 const require=createRequire(root+'/package.json');
 const {Miniflare}=require(require.resolve('miniflare',{paths:[require.resolve('wrangler')]}));
 const {PDFDocument}=require('pdf-lib');
@@ -194,6 +195,7 @@ try{
  assert.equal((await like(projectPhoto.asset.id,true,anonClient)).status,404);assert.equal((await like(specification.asset.id,true)).status,404);
  assert.equal((await like(photo.attachment.id,true,anonClient)).status,200);
  console.log('PASS: folders, revision grouping, scoped folder access, callout persistence, project media, specifications permissions, task-photo aggregation, isolated/idempotent per-person likes.');
+ await verifyPortal({mf,database,call,owner,other,p,png,singleBytes,projectPhoto,photo,created});
  const html=await mf.dispatchFetch('https://review.test/',{headers:owner});assert.equal(html.status,200);assert((await html.text()).includes('octava'));
  console.log('PASS: irregular polygons and precision persistence, batch erasure/version conflicts, client edit/erase ownership, production Worker SSR, anonymous guest creation and persistence, guest/owner isolation, no-login client links, task/markup CRUD, conflict protection, drawing scoping and client feedback, PDF upload/download, partial-PDF protection, link revocation.');
 }finally{await mf.dispose()}

@@ -8,8 +8,8 @@ Live app: [octava-plan-review.mattusher.chatgpt.site](https://octava-plan-review
 | --- | --- |
 | Source code and version history | [theuninspiredarchitect/octavareview](https://github.com/theuninspiredarchitect/octavareview) on GitHub |
 | App and API hosting | Sites, running a Cloudflare Worker |
-| Projects, plan folders, annotations, tasks, comments, photo likes and access links | Cloudflare D1, bound as `DB` |
-| Original PDFs, task attachments, photos, files and specifications | Cloudflare R2, bound as `BUCKET` |
+| Projects, folders, annotations, tasks, comments, photo groups/likes, backup indexes and access links | Cloudflare D1, bound as `DB` |
+| Original PDFs, task attachments, photos, presentations, files, specifications and backup copies | Cloudflare R2, bound as `BUCKET` |
 | Permanent identities | Supabase Auth; first administrator and production email setup remain pending |
 | Computer, iPad and iPhone access | The same HTTPS app URL; optional browser installation |
 
@@ -41,10 +41,14 @@ On iPad or iPhone, open the app in Safari and use Share → Add to Home Screen. 
 
 Anonymous owner sessions are tied to the browser, last 30 days and are lost when its cookies are cleared. Installing the app does not create a permanent owner account. Permanent account registration, sign-in, email confirmation and password reset are implemented through Supabase Auth and become available after the account setup is completed.
 
-Active plan and task views receive cloud updates every 2.5 seconds, and every 15 seconds in the background. Photos/files refresh every 3 seconds while visible, and projects every 5 seconds. Focus and reconnect trigger refreshes too. This is automatic polling, not a WebSocket Realtime service. A conflicting edit never silently replaces an open task draft. All roles see plan feedback by default; role filters are optional.
+Active plan and task views receive cloud updates every 2.5 seconds, and every 15 seconds in the background. Photos/files and projects refresh every 5 seconds while visible. Focus and reconnect trigger refreshes too. This is automatic polling, not a WebSocket Realtime service. A conflicting edit never silently replaces an open task draft. All roles see plan feedback by default; role filters are optional.
+
+Sharing offers selected drawings (the default, preserving existing links) or the whole project, including future documents, presentations and photos. Explicit plan audiences continue to apply. Links can be revoked. Shared-link reviewers cannot reorganize project files or access backups.
+
+Photo galleries use generated 640-pixel previews, viewport-based loading and pages of 36 items. Originals stay unchanged. Existing supported images under 25 MiB acquire a reusable thumbnail when an authorized participant views them; unsupported images show an original-download fallback. Presentations default to a date and project name, can be renamed, and support PDF preview plus downloadable PowerPoint/Keynote files.
 
 ## What belongs in Git
 
-Commit application source, the dependency lockfile, migrations and required static assets. Keep environment secrets, local database state, build output, uploaded client PDFs and project data out of the repository. Existing `.gitignore` rules exclude the local runtime and environment files. Hosted data needs a separate backup process; a GitHub source copy is not a project-data backup.
+Commit application source, the dependency lockfile, migrations and required static assets. Keep environment secrets, local database state, build output, uploaded client PDFs and project data out of the repository. Existing `.gitignore` rules exclude the local runtime and environment files. Project administrators can now create, download and restore manual snapshots through Files → Backups. See [backup and recovery boundaries](BACKUPS.md). A GitHub source copy is not a project-data backup.
 
 Provider references: [Cloudflare Workers](https://developers.cloudflare.com/workers/), [D1](https://developers.cloudflare.com/d1/), [R2](https://developers.cloudflare.com/r2/), [Vercel Next.js hosting](https://vercel.com/docs/frameworks/full-stack/nextjs), [Supabase](https://supabase.com/docs).

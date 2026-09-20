@@ -7,12 +7,12 @@ import {toast} from 'sonner';
 import {Attachment,Comment,Member,RecordItem,Sheet,Task,professionNames,statusNames,uid} from '@/lib/review-types';
 import PlanPreview from './plan-preview';
 import {Choice,professionOptions} from './review-controls';
+import {uploadFile,uploadThumbnail,DOCUMENT_LIMIT} from '@/lib/upload-client';
+import AssetPreview from './asset-preview';
 type Requester=(path:string,options?:RequestInit)=>Promise<any>;
 const fileSize=(n:number)=>n<1024*1024?Math.max(1,Math.round(n/1024))+' KB':(n/1024/1024).toFixed(1)+' MB';
 function AttachmentImage({file,projectId,headers,large=false}:{file:Attachment;projectId:string;headers:Record<string,string>;large?:boolean}){
- const [src,setSrc]=useState(''),[error,setError]=useState(false);
- useEffect(()=>{let live=true,url='';const controller=new AbortController();fetch('/api/attachments?project='+projectId+'&id='+file.id,{headers,signal:controller.signal}).then(r=>{if(!r.ok)throw new Error('Image unavailable');return r.blob()}).then(blob=>{if(live){url=URL.createObjectURL(blob);setSrc(url)}}).catch(()=>live&&setError(true));return()=>{live=false;controller.abort();if(url)URL.revokeObjectURL(url)}},[projectId,file.id]);
- return src?<img className={large?'attachment-large':'attachment-photo'} src={src} alt={file.name}/>:<span className="attachment-loading">{error?<ImageIcon size={24}/>:<LoaderCircle className="spin" size={20}/>}<span>{error?'Preview unavailable':'Loading photo'}</span></span>
+ return <AssetPreview file={{...file,source:'task'}} projectId={projectId} headers={headers} large={large}/>;
 }
 export default function TaskDialog({open,onOpenChange,task,remoteTask,onTaskChange,sheets,comments,projectId,headers,request,role,userId,name,onSave,onComment,onDelete,onLocate,onOpenPlan}:{open:boolean;onOpenChange:(v:boolean)=>void;task:Task|null;remoteTask?:Task;onTaskChange:(t:Task)=>void;sheets:Sheet[];comments:Comment[];projectId:string;headers:Record<string,string>;request:Requester;role:string;userId?:string;name:string;onSave:(t:Task)=>Promise<Task>;onComment:(c:Comment)=>Promise<RecordItem>;onDelete:(t:Task)=>void;onLocate:(t:Task)=>void;onOpenPlan:(id:string)=>void}){
  const [busy,setBusy]=useState(false),[text,setText]=useState(''),[files,setFiles]=useState<File[]>([]),[panel,setPanel]=useState('details'),[job,setJob]=useState('all'),[sort,setSort]=useState('time'),[focus,setFocus]=useState(false),[activeFile,setActiveFile]=useState<Attachment|null>(null),[members,setMembers]=useState<Member[]>([]),[progress,setProgress]=useState('');
@@ -26,11 +26,11 @@ export default function TaskDialog({open,onOpenChange,task,remoteTask,onTaskChan
  const deletedElsewhere=!!task?.version&&!remoteTask;
  const sheet=sheets.find(s=>s.id===task?.sheetId),client=role==='client',readOnly=client&&!!task?.version;
  const media=Array.from(new Map(comments.flatMap(c=>c.attachments||[]).map(a=>[a.id,a])).values()),shown=comments.filter(c=>job==='all'||(c.authorRole||'internal')===job).slice().sort((a,b)=>sort==='role'?(a.authorRole||'internal').localeCompare(b.authorRole||'internal')||a.created.localeCompare(b.created):a.created.localeCompare(b.created));
- function addFiles(incoming:File[]){const available=8-files.length;if(incoming.some(f=>f.size>25*1024*1024)){toast.error('Each attachment must be smaller than 25 MB.');return}if(incoming.length>available)toast('You can attach up to 8 files per message.');setFiles(old=>[...old,...incoming.slice(0,available)])}
+ function addFiles(incoming:File[]){const available=8-files.length;if(incoming.some(f=>f.size>DOCUMENT_LIMIT)){toast.error('Each attachment can be up to 200 MB.');return}if(incoming.length>available)toast('You can attach up to 8 files per message.');setFiles(old=>[...old,...incoming.slice(0,available)])}
  async function save(e:React.FormEvent){e.preventDefault();if(!task)return;setBusy(true);try{const saved=await onSave({...task,title:task.title.trim()});baseTask.current=saved;onTaskChange(saved);toast.success(task.version?'Task updated':'Task created')}catch{}finally{setBusy(false)}}
  async function send(e?:React.FormEvent){e?.preventDefault();if(!task?.version||busy||(!text.trim()&&!files.length))return;setBusy(true);try{
   const attachments:Attachment[]=[];
-  for(let i=0;i<files.length;i++){const file=files[i];setProgress('Uploading '+(i+1)+' of '+files.length);let attachment=uploaded.current.get(file);if(!attachment){const form=new FormData();form.append('file',file);attachment=(await request('/api/attachments?project='+projectId+'&task='+task.id,{method:'POST',body:form})).attachment as Attachment;uploaded.current.set(file,attachment)}attachments.push(attachment)}
+  for(let i=0;i<files.length;i++){const file=files[i];setProgress('Uploading '+(i+1)+' of '+files.length);let attachment=uploaded.current.get(file);if(!attachment){attachment=(await uploadFile(request,projectId,file,'attachment',{taskId:task.id},n=>setProgress('File '+(i+1)+' · '+n+'%'))).attachment as Attachment;uploaded.current.set(file,attachment);await uploadThumbnail(request,projectId,attachment.id,file).catch(()=>false)}attachments.push(attachment)}
   setProgress('Sending');await onComment({id:uid(),type:'comment',sheetId:task.sheetId,taskId:task.id,text:text.trim(),attachments,author:name,created:new Date().toISOString(),visibility:task.visibility,audience:[]});setText('');setFiles([]);uploaded.current.clear();setPanel('chat');
  }catch(e:any){toast.error(e.message)}finally{setProgress('');setBusy(false)}}
  async function download(file:Attachment){try{const r=await fetch('/api/attachments?project='+projectId+'&id='+file.id+'&download=1',{headers});if(!r.ok)throw new Error('This attachment could not be downloaded.');const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000)}catch(e:any){toast.error(e.message)}}

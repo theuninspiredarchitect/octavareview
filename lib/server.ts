@@ -39,7 +39,7 @@ export function json(value:unknown,status=200){return Response.json(value,{statu
 export function error(e:unknown){console.error(e instanceof Error?e.message:'Request failed');return json({error:e instanceof Error?e.message:'Something went wrong'},(e as {status?:number})?.status||500)}
 export function origin(req:Request){const o=req.headers.get('origin');if(o&&o!==new URL(req.url).origin)fail('This request is not allowed.',403);if(req.headers.get('sec-fetch-site')==='cross-site'&&!o)fail('This request is not allowed.',403)}
 export async function hash(t:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))).map(x=>x.toString(16).padStart(2,'0')).join('')}
-export type Access={project:any;role:'owner'|'editor'|'client';profession:Profession;sheets:string[];user:string;name:string;email:string;guest:boolean;shareId?:string};
+export type Access={project:any;role:'owner'|'editor'|'client';profession:Profession;sheets:string[];user:string;name:string;email:string;guest:boolean;shareId?:string;shareScope?:'sheets'|'project'};
 export async function projectList(req:Request){
  const u=await identity(req);if(!u.id)return [];
  return (await db().prepare("SELECT DISTINCT p.id,p.name,p.created FROM projects p LEFT JOIN project_members m ON m.project_id=p.id WHERE p.owner=? OR m.user_id=? OR (m.user_id IS NULL AND m.email=? AND ?!='') ORDER BY p.created DESC").bind(u.id,u.id,u.email,u.email).all<any>()).results;
@@ -51,7 +51,7 @@ export async function access(req:Request,projectId?:string|null):Promise<Access>
   if(!s)fail('This review link is no longer available.',403);
   if(projectId&&projectId!==s.project_id)fail('Project access denied.',403);
   const p=await db().prepare('SELECT * FROM projects WHERE id = ?').bind(s.project_id).first<any>();if(!p)fail('Project not found.',404);
-  return {project:p,role:s.role,profession:profession(s.profession),sheets:JSON.parse(s.sheet_ids),user:u.id||s.id,name:u.guest?'Client':u.name,email:u.email,guest:u.guest,shareId:s.id};
+  return {project:p,role:s.role,profession:profession(s.profession),sheets:JSON.parse(s.sheet_ids),user:u.id||s.id,name:u.guest?'Client':u.name,email:u.email,guest:u.guest,shareId:s.id,shareScope:s.scope==='project'?'project':'sheets'};
  }
  if(!u.id)fail('Open a guest workspace or sign in to continue.',401);
  const id=projectId||(await projectList(req))[0]?.id;if(!id)fail('No project found.',404);
@@ -62,7 +62,7 @@ export async function access(req:Request,projectId?:string|null):Promise<Access>
  if(!m.user_id)await db().prepare('UPDATE project_members SET user_id=? WHERE id=? AND user_id IS NULL').bind(u.id,m.id).run();
  return {project:p,role:m.access,profession:profession(m.profession),sheets:[],user:u.id,name:m.name||u.name,email:u.email,guest:u.guest};
 }
-export function allowedSheet(a:Access,id:string){return !a.shareId||a.sheets.includes(id)}
+export function allowedSheet(a:Access,id:string){return !a.shareId||a.shareScope==='project'||a.sheets.includes(id)}
 export function visible(a:Access,r:any){
  if(!allowedSheet(a,r.type==='sheet'?r.id:r.sheetId))return false;
  // Roles classify work for filtering. They do not hide markups, tasks or discussion.

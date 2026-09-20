@@ -28,7 +28,7 @@ The administrator adds a person's name, email, role tag and permission in Projec
 
 Everyone with access to a plan sees its markups, tasks and comments by default. The optional role filter changes the view, not access rights. Existing explicit plan audiences are retained and apply to all pages in a PDF. Attachment access checks the project, task and message. A review link has its own role tag and selected sheets; it remains usable without an account and can be revoked. Sheet-scoped links do not expose general project files, photos or specifications.
 
-Projects, folders, photos and per-person likes are stored in D1/R2. Active plan/task views refresh every 2.5 seconds (15 seconds in the background), plus on reconnect and focus. Open task drafts are preserved when another device updates that task; the UI asks the editor to load the latest version before saving.
+Projects, folders, photos and per-person likes are stored in D1/R2. Active plan/task views refresh every 2.5 seconds (15 seconds in the background), plus on reconnect and focus. Open task drafts are preserved when another device updates that task; the UI asks the editor to load the latest version before saving. A new whole-project link option exposes general files and presentations; existing sheet-scoped links are unchanged. Manual project backups and copy restoration are described in [BACKUPS.md](BACKUPS.md).
 
 ## Verification boundaries
 
