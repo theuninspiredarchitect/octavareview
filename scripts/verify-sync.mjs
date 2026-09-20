@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {reconcileReview} from '../lib/review-sync.ts';
+const record=(id,version,text=id)=>({id,type:'markup',version,text});
+const a=record('a',1),b=record('b',1),newB=record('b',2,'Remote change');
+assert.deepEqual(reconcileReview([a,newB],[a,b],new Set()),[a,newB]);
+const draft=record('a',1,'Unsaved draft');
+assert.deepEqual(reconcileReview([a,newB],[draft,b],new Set(['a'])),[draft,newB]);
+const created=record('new',1);
+assert.deepEqual(reconcileReview([a],[a,created],new Set(['new'])),[a,created]);
+assert.deepEqual(reconcileReview([a,b],[b],new Set(['a'])),[b]);
+assert.deepEqual(reconcileReview([a],[a,b],new Set()),[a]);
+assert.deepEqual(reconcileReview([a,b],[record('a',2),b],new Set()),[record('a',2),b]);
+const same=[a,b];assert.equal(reconcileReview([{...a},{...b}],same,new Set()),same);
+console.log('PASS: remote edits/deletes, failed draft preservation, in-flight creation/deletion races, stale snapshot versions, stable rendering references.');

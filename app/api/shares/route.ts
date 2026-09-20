@@ -5,7 +5,7 @@ async function handleGET(req:Request){try{const a=await access(req,new URL(req.u
 async function handlePOST(req:Request){try{
  origin(req);const b:any=await req.json(),a=await access(req,b.projectId);if(a.role!=='owner')fail('Only the owner can manage review links.',403);
  if(b.action==='revoke'){await db().prepare('UPDATE shares SET revoked = 1 WHERE id = ? AND project_id = ?').bind(b.id,a.project.id).run();return json({ok:true})}
- const role=z.enum(['client','editor']).parse(b.role),profession=z.enum(['architect','owner','builder']).parse(b.profession||(role==='editor'?'architect':'owner')),sheetIds=z.array(z.string()).min(1).max(500).parse(b.sheetIds);
+ const role=z.enum(['client','editor']).parse(b.role),profession=z.enum(['internal','owner','builder','other']).parse(b.profession||(role==='editor'?'internal':'owner')),sheetIds=z.array(z.string()).min(1).max(500).parse(b.sheetIds);
  const existing=(await db().prepare("SELECT id FROM records WHERE project_id = ? AND type = 'sheet'").bind(a.project.id).all<any>()).results.map(r=>r.id);
  if(!sheetIds.every(id=>existing.includes(id)))fail('One of these drawings is no longer available.');
  // PDFs can contain multiple pages. Do not disclose excluded pages through a shared file.

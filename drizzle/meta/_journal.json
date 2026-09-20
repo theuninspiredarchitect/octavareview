@@ -29,6 +29,20 @@
       "when": 1789911493789,
       "tag": "0003_whole_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789942051508,
+      "tag": "0004_plan_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789942557880,
+      "tag": "0005_project_documents_and_photo_likes",
+      "breakpoints": true
     }
   ]
 }

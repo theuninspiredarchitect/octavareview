@@ -1,21 +1,26 @@
 import {z} from 'zod';
 import {withSession} from '@/lib/supabase-server';
-import {access,db,error,fail,getRecords,identity,json,origin,visible,allowedSheet,projectList} from '@/lib/server';
+import {access,db,error,fail,getRecords,identity,json,origin,visible,allowedSheet,projectList,hash,profession} from '@/lib/server';
 import {sampleRecords} from '@/lib/review-types';
 import {validArea,areaPoints} from '@/lib/drawing-geometry';
 const point=z.object({x:z.number().finite().min(-100000).max(100000),y:z.number().finite().min(-100000).max(100000)});
-const audience=z.array(z.enum(['architect','owner','builder'])).max(3).optional();
+const audience=z.array(z.preprocess(v=>v==='architect'?'internal':v,z.enum(['internal','owner','builder','other']))).max(4).optional();
 const base={audience,id:z.string().min(1).max(100),created:z.string().max(60),version:z.number().int().optional()};
 const vis=z.enum(['internal','client']);
-const sheet=z.object({...base,type:z.literal('sheet'),code:z.string().max(100),name:z.string().min(1).max(200),revision:z.string().max(40),page:z.number().int().min(1).max(500),width:z.number().positive().max(30000),height:z.number().positive().max(30000),fileId:z.string().max(100).optional(),groupId:z.string().max(100),sample:z.enum(['ground','roof','site']).optional(),calibration:z.number().positive().max(100000).optional(),unit:z.enum(['m','ft']).optional()});
-const mark=z.object({...base,type:z.literal('markup'),sheetId:z.string(),kind:z.enum(['pen','line','arrow','rect','ellipse','measure','area','text']),points:z.array(point).min(1).max(20000),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),width:z.number().min(0.5).max(30),textSize:z.number().min(8).max(160).optional(),areaShape:z.enum(['rectangle','polygon']).optional(),precision:z.number().int().min(2).max(4).optional(),text:z.string().max(2000).optional(),visibility:vis,author:z.string().max(200)});
+const sheet=z.object({...base,type:z.literal('sheet'),code:z.string().max(100),name:z.string().min(1).max(200),revision:z.string().max(40),page:z.number().int().min(1).max(500),width:z.number().positive().max(30000),height:z.number().positive().max(30000),fileId:z.string().max(100).optional(),groupId:z.string().max(100),folderId:z.string().max(100).optional(),sample:z.enum(['ground','roof','site']).optional(),calibration:z.number().positive().max(100000).optional(),unit:z.enum(['m','ft']).optional()});
+const mark=z.object({...base,type:z.literal('markup'),sheetId:z.string(),kind:z.enum(['pen','line','arrow','rect','ellipse','measure','area','text']),points:z.array(point).min(1).max(20000),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),width:z.number().min(0.5).max(30),textSize:z.number().min(8).max(160).optional(),textStyle:z.enum(['plain','callout']).optional(),areaShape:z.enum(['rectangle','polygon']).optional(),precision:z.number().int().min(2).max(4).optional(),text:z.string().max(2000).optional(),visibility:vis,author:z.string().max(200)});
 const task=z.object({...base,type:z.literal('task'),sheetId:z.string(),number:z.number(),title:z.string().min(1).max(200),description:z.string().max(10000),status:z.enum(['open','progress','done']),priority:z.enum(['low','medium','high']),assignee:z.string().max(120),due:z.string().max(20),source:z.enum(['Internal review','Client review','Site visit']),visibility:vis,position:point.nullable(),author:z.string().max(200)});
 const comment=z.object({...base,type:z.literal('comment'),sheetId:z.string(),taskId:z.string(),text:z.string().max(10000),attachments:z.array(z.object({id:z.string().max(100)})).max(8).optional(),author:z.string().max(200),visibility:vis});
 const recordSchema=z.discriminatedUnion('type',[sheet,mark,task,comment]);
 async function handleGET(req:Request){try{
  const a=await access(req,new URL(req.url).searchParams.get('project'));const records=await getRecords(a);
  const projects=a.shareId?[]:await projectList(req);
- return json({project:{id:a.project.id,name:a.project.name,created:a.project.created},records,role:a.role,profession:a.profession,userId:a.user,name:a.name,guest:a.guest,projects});
+ const allFolders=(await db().prepare('SELECT id,name,version,created FROM plan_folders WHERE project_id=? ORDER BY name COLLATE NOCASE').bind(a.project.id).all()).results;
+ const folders=a.shareId?allFolders.filter((f:any)=>records.some(r=>r.type==='sheet'&&r.folderId===f.id)):allFolders;
+ const payload={project:{id:a.project.id,name:a.project.name,created:a.project.created},records,role:a.role,profession:a.profession,userId:a.user,name:a.name,guest:a.guest,projects,folders};
+ const etag='"'+await hash(JSON.stringify(payload))+'"';
+ if(req.headers.get('if-none-match')===etag)return new Response(null,{status:304,headers:{ETag:etag,'Cache-Control':'private, no-store'}});
+ const response=json(payload);response.headers.set('ETag',etag);return response;
 }catch(e){return error(e)}}
 async function handlePOST(req:Request){try{
  origin(req);const b:any=await req.json();
@@ -45,8 +50,9 @@ async function handlePOST(req:Request){try{
  if(old&&old.type!==r.type)fail('Record type cannot change.');
  if(r.type==='sheet'){
   if(a.role==='client')fail('Clients cannot change drawing files or scale.',403);
-  if(old)r.audience=JSON.parse(old.data).audience||[];
+  if(old){r.audience=JSON.parse(old.data).audience||[];r.folderId=JSON.parse(old.data).folderId;}
   else if(r.fileId){const related=await db().prepare("SELECT data FROM records WHERE project_id=? AND type='sheet' AND json_extract(data,'$.fileId')=? LIMIT 1").bind(a.project.id,r.fileId).first<any>();r.audience=related?JSON.parse(related.data).audience||[]:[];}else r.audience=[];
+  if(r.folderId&&!await db().prepare('SELECT id FROM plan_folders WHERE id=? AND project_id=?').bind(r.folderId,a.project.id).first())fail('Folder not found.',404);
   if(r.fileId){const f=await db().prepare('SELECT id FROM files WHERE id = ? AND project_id = ?').bind(r.fileId,a.project.id).first();if(!f)fail('Upload the drawing before saving it.')}
  }else{
   if(!allowedSheet(a,r.sheetId))fail('This drawing is not part of the review.',403);
@@ -65,7 +71,7 @@ async function handlePOST(req:Request){try{
  }
  if(old){
   if(b.record.version!==old.version)fail('Someone updated this item. Refresh before saving your changes.',409);
-  const prior=JSON.parse(old.data);if('author'in r){r.author=prior.author;(r as any).authorRole=prior.authorRole||a.profession;}if(r.type==='task')r.number=prior.number;r.created=prior.created;
+  const prior=JSON.parse(old.data);if('author'in r){r.author=prior.author;(r as any).authorRole=profession(prior.authorRole);}if(r.type==='task')r.number=prior.number;r.created=prior.created;
   const result=await db().prepare('UPDATE records SET data = ?, version = version + 1 WHERE project_id = ? AND id = ? AND version = ?').bind(JSON.stringify(r),a.project.id,r.id,old.version).run();
   if(!result.meta.changes)fail('This item has changed. Refresh and try again.',409);
   r.version=old.version+1;

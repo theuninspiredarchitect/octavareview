@@ -3,7 +3,7 @@ import {authenticatedUser} from './supabase-server';
 import type {Profession,RecordItem} from './review-types';
 export function db(){if(!env.DB)throw new Error('Storage is unavailable. Please try again.');return env.DB;}
 export function bucket(){if(!env.BUCKET)throw new Error('Document storage is unavailable.');return env.BUCKET;}
-export const profession=(value:unknown):Profession=>value==='owner'||value==='builder'?value:'architect';
+export const profession=(value:unknown):Profession=>value==='owner'||value==='builder'||value==='other'?value:'internal';
 export async function guestIdentity(req:Request){
  const token=(req.headers.get('cookie')||'').split(';').map(v=>v.trim()).find(v=>v.startsWith('octava_guest='))?.slice(13);
  if(token&&/^[a-f0-9-]{72}$/.test(token))return await db().prepare('SELECT owner_id FROM guest_sessions WHERE token_hash = ? AND expires > ?').bind(await hash(token),Date.now()).first<{owner_id:string}>();
@@ -15,9 +15,9 @@ export async function identity(req:Request){
  const id=req.headers.get('oai-authenticated-user-id'),email=req.headers.get('oai-authenticated-user-email')||'';
  let name=email||'Reviewer';const full=req.headers.get('oai-authenticated-user-full-name');
  if(full&&req.headers.get('oai-authenticated-user-full-name-encoding')==='percent-encoded-utf-8'){try{name=decodeURIComponent(full)}catch{}}
- if(id)return {id,name,email:email.toLowerCase(),profession:'architect' as Profession,guest:false,account:false};
+ if(id)return {id,name,email:email.toLowerCase(),profession:'internal' as Profession,guest:false,account:false};
  const session=await guestIdentity(req);
- return {id:session?.owner_id||null,name:'Guest',email:'',profession:'architect' as Profession,guest:true,account:false};
+ return {id:session?.owner_id||null,name:'Guest',email:'',profession:'internal' as Profession,guest:true,account:false};
 }
 export async function claimGuestWorkspace(req:Request,userId:string,verifiedEmail=''){
  const guest=await guestIdentity(req),owners=new Set<string>();if(guest)owners.add(guest.owner_id);
@@ -27,6 +27,9 @@ export async function claimGuestWorkspace(req:Request,userId:string,verifiedEmai
   db().prepare('UPDATE projects SET owner = ? WHERE owner = ?').bind(userId,owner),
   db().prepare('UPDATE records SET creator = ? WHERE creator = ?').bind(userId,owner),
   db().prepare('UPDATE attachments SET creator = ? WHERE creator = ?').bind(userId,owner),
+  db().prepare('UPDATE project_documents SET creator = ? WHERE creator = ?').bind(userId,owner),
+  db().prepare('INSERT OR IGNORE INTO photo_likes(project_id,photo_id,user_id,created) SELECT project_id,photo_id,?,created FROM photo_likes WHERE user_id=?').bind(userId,owner),
+  db().prepare('DELETE FROM photo_likes WHERE user_id=?').bind(owner),
   db().prepare('DELETE FROM guest_sessions WHERE owner_id = ?').bind(owner),
  ]);}
 }
@@ -62,13 +65,13 @@ export async function access(req:Request,projectId?:string|null):Promise<Access>
 export function allowedSheet(a:Access,id:string){return !a.shareId||a.sheets.includes(id)}
 export function visible(a:Access,r:any){
  if(!allowedSheet(a,r.type==='sheet'?r.id:r.sheetId))return false;
- if(a.role==='owner')return true;
- if(r.audience?.length&&!r.audience.includes(a.profession))return false;
- return a.role!=='client'||r.type==='sheet'||r.visibility==='client';
+ // Roles classify work for filtering. They do not hide markups, tasks or discussion.
+ if(r.type==='sheet'&&a.role!=='owner'&&r.audience?.length&&!r.audience.map(profession).includes(a.profession))return false;
+ return true;
 }
 export async function getRecords(a:Access):Promise<RecordItem[]>{
  const {results}=await db().prepare('SELECT data,version,creator FROM records WHERE project_id = ? ORDER BY created ASC').bind(a.project.id).all<any>();
- const parsed=results.map((r:any)=>({...JSON.parse(r.data),version:r.version,creatorId:r.creator,...(JSON.parse(r.data).type==='markup'?{editable:a.role!=='client'||r.creator===a.user}:{})}));
+ const parsed=results.map((r:any)=>{const data=JSON.parse(r.data);return {...data,...('authorRole'in data?{authorRole:profession(data.authorRole)}:{}),...(Array.isArray(data.audience)?{audience:Array.from(new Set(data.audience.map(profession)))}:{}),version:r.version,creatorId:r.creator,...(data.type==='markup'?{editable:a.role!=='client'||r.creator===a.user}:{})}});
  const sheetIds=new Set(parsed.filter((r:any)=>r.type==='sheet'&&visible(a,r)).map((r:any)=>r.id));
  const records=parsed.filter((r:any)=>visible(a,r)&&(r.type==='sheet'||sheetIds.has(r.sheetId)));
  const taskIds=new Set(records.filter((r:any)=>r.type==='task').map((r:any)=>r.id));

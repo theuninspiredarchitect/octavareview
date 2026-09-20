@@ -13,10 +13,25 @@ export function polygonLabel(points:Point[]){let sum=0,x=0,y=0;points.forEach((a
 export function measureText(m:Markup,s:Sheet){if(!s.calibration)return 'Set scale';const a=m.points[0],b=m.points.at(-1)!;const value=m.kind==='area'?polygonArea(areaPoints(m.points))*s.calibration**2:distance(a,b)*s.calibration;return value.toFixed(m.precision??2)+' '+(s.unit||'m')+(m.kind==='area'?'²':'')}
 export function labelPoint(m:Markup){return m.kind==='area'?polygonLabel(areaPoints(m.points)):{x:(m.points[0].x+m.points.at(-1)!.x)/2,y:(m.points[0].y+m.points.at(-1)!.y)/2-15}}
 export function constrain(a:Point,b:Point){return Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?{x:b.x,y:a.y}:{x:a.x,y:b.y}}
+export function textLayout(m:Markup,s?:Sheet){
+ const a=m.points[0],size=m.textSize||Math.max(14,m.width*5),callout=m.textStyle==='callout',padding=callout?Math.max(8,size*.45):0,lineHeight=size*1.25;
+ const maxChars=Math.max(4,Math.floor((Math.min(360,(s?.width||1200)-24)-padding*2)/(size*.6)));
+ const lines=callout?(m.text||'').split('\n').flatMap(paragraph=>{const rows:string[]=[];let row='';for(const word of paragraph.split(/\s+/)){if((row+' '+word).trim().length>maxChars&&row){rows.push(row);row=''}let rest=word;while(rest.length>maxChars){if(row){rows.push(row);row=''}rows.push(rest.slice(0,maxChars));rest=rest.slice(maxChars)}row+=(row?' ':'')+rest}rows.push(row);return rows}):(m.text||'').split('\n');
+ const width=Math.max(callout?80:1,...lines.map(l=>l.length*size*.6))+padding*2,height=Math.max(1,lines.length)*lineHeight+padding*2;
+ const x=callout?Math.max(6,Math.min((s?.width||100000)-width-6,a.x+12)):a.x;
+ const above=a.y-height-18>=6,y=callout?(above?a.y-height-18:Math.max(6,Math.min((s?.height||100000)-height-6,a.y+18))):a.y-size;
+ return {x,y,width,height,padding,size,lineHeight,lines,above,anchor:a,callout,textX:x+padding,textY:y+padding+size};
+}
+export function calloutPath(box:ReturnType<typeof textLayout>){
+ const {x,y,width:w,height:h,anchor:a,above}=box,r=6,t=7,join=Math.max(x+r+t,Math.min(x+w-r-t,a.x));
+ const top=above?'H'+(x+w-r):'H'+(join-t)+'L'+a.x+' '+a.y+'L'+(join+t)+' '+y+'H'+(x+w-r);
+ const bottom=above?'H'+(join+t)+'L'+a.x+' '+a.y+'L'+(join-t)+' '+(y+h)+'H'+(x+r):'H'+(x+r);
+ return 'M'+(x+r)+' '+y+top+'Q'+(x+w)+' '+y+' '+(x+w)+' '+(y+r)+'V'+(y+h-r)+'Q'+(x+w)+' '+(y+h)+' '+(x+w-r)+' '+(y+h)+bottom+'Q'+x+' '+(y+h)+' '+x+' '+(y+h-r)+'V'+(y+r)+'Q'+x+' '+y+' '+(x+r)+' '+y+'Z';
+}
 function polyline(m:Markup):Point[]{const a=m.points[0],b=m.points.at(-1)!;if(m.kind==='area')return areaPoints(m.points);if(m.kind==='rect')return[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}];if(m.kind==='ellipse'){const cx=(a.x+b.x)/2,cy=(a.y+b.y)/2,rx=Math.abs(a.x-b.x)/2,ry=Math.abs(a.y-b.y)/2;return Array.from({length:65},(_,i)=>({x:cx+rx*Math.cos(i*Math.PI/32),y:cy+ry*Math.sin(i*Math.PI/32)}))}if(m.kind==='pen'&&m.points.length>2){const out=[a];let from=a;for(let i=1;i<m.points.length-1;i++){const p=m.points[i],n=m.points[i+1],end={x:(p.x+n.x)/2,y:(p.y+n.y)/2};for(let j=1;j<=4;j++){const t=j/4,u=1-t;out.push({x:u*u*from.x+2*u*t*p.x+t*t*end.x,y:u*u*from.y+2*u*t*p.y+t*t*end.y})}from=end}out.push(b);return out}return m.points}
 function boxHit(a:Point,b:Point,r:number,x:number,y:number,w:number,h:number){const ps=[{x:x-r,y:y-r},{x:x+w+r,y:y-r},{x:x+w+r,y:y+h+r},{x:x-r,y:y+h+r}];return inPolygon(a,ps)||inPolygon(b,ps)||ps.some((p,i)=>intersects(a,b,p,ps[(i+1)%4]))}
 export function hitMarkup(m:Markup,s:Sheet,from:Point,to:Point,radius:number){const a=m.points[0];if(!a)return false;const r=radius+m.width/2;
- if(m.kind==='text'){const lines=(m.text||'').split('\n'),size=m.textSize||Math.max(14,m.width*5);return boxHit(from,to,r,a.x,a.y-size,Math.max(...lines.map(l=>l.length),1)*size*.62,lines.length*(m.textSize?m.textSize*1.2:Math.max(17,m.width*6)))}
+ if(m.kind==='text'){const box=textLayout(m,s);return boxHit(from,to,r,box.x,box.y,box.width,box.height)||(box.callout&&segmentGap(from,to,a,{x:Math.max(box.x,Math.min(box.x+box.width,a.x)),y:box.above?box.y+box.height:box.y})<=r+7)}
  const ps=polyline(m),closed=['rect','area','ellipse'].includes(m.kind);
  if(m.kind==='area'&&(inPolygon(from,ps)||inPolygon(to,ps)))return true;
  if(ps.length===1&&segmentDistance(ps[0],from,to)<=r)return true;

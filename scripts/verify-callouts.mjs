@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {textLayout,calloutPath,hitMarkup} from '../lib/drawing-geometry.ts';
+const sheet={width:600,height:450};
+const note={kind:'text',points:[{x:200,y:240}],width:2,text:'Move the door and widen the opening to align with the adjacent wall.',textSize:24,textStyle:'callout'};
+const box=textLayout(note,sheet);assert(box.lines.length>1);assert(box.above);assert(box.width<=360);assert(box.x+box.width<=sheet.width);assert(box.y>=6);assert(calloutPath(box).endsWith('Z'));
+assert(hitMarkup(note,sheet,{x:box.x+20,y:box.y+20},{x:box.x+40,y:box.y+40},2));
+assert(hitMarkup(note,sheet,{x:200,y:238},{x:200,y:244},2));assert(!hitMarkup(note,sheet,{x:0,y:0},{x:20,y:0},2));
+const top=textLayout({...note,points:[{x:580,y:10}]},sheet);assert(!top.above);assert(top.x+top.width<=sheet.width);assert(top.y>10);
+const plain=textLayout({...note,textStyle:'plain',text:'Legacy text'},sheet);assert.equal(plain.x,200);assert.equal(plain.y,216);assert.equal(plain.padding,0);
+const long=textLayout({...note,text:'abcdefghijklmnopqrstuvwxyz'.repeat(8)},sheet);assert(long.lines.length>5);assert(long.lines.every(s=>s.length<30));
+console.log('PASS: callout wrapping, plan-edge placement, bubble paths, eraser/selection hit tests, and legacy text compatibility.');

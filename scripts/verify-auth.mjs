@@ -21,12 +21,19 @@ const jar=new Map();
 async function call(route,body,headers={}){const res=await mf.dispatchFetch('https://review.test'+route,{method:body?'POST':'GET',headers:{Cookie:[...jar].map(([k,v])=>k+'='+v).join('; '),'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});for(const cookie of res.headers.getSetCookie()){const pair=cookie.split(';')[0],i=pair.indexOf('=');jar.set(pair.slice(0,i),pair.slice(i+1));}const data=await res.json();return {status:res.status,cookies:res.headers.getSetCookie(),...data};}
 try{
  const db=await mf.getD1Database('DB');for(const file of fs.readdirSync(root+'/drizzle').filter(f=>f.endsWith('.sql')).sort())for(const sql of fs.readFileSync(root+'/drizzle/'+file,'utf8').split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
- assert.equal((await call('/api/auth')).configured,true);
+ const config=await call('/api/auth');assert.equal(config.configured,true);assert.equal(config.emailReady,false);
+ assert.equal((await call('/api/auth',{action:'signup',email:user.email,password:'contract-test-password',name:'QA account',profession:'other'})).status,503);
+ assert.equal((await call('/api/auth',{action:'reset',email:user.email})).status,503);
  await call('/api/session',{});const oldGuest=jar.get('octava_guest');
  const p=await call('/api/review',{action:'createProject',name:'Guest to permanent account',sample:true});assert.equal(p.status,201);
+ const before=await call('/api/review?project='+p.id),date=new Date().toISOString();
+ await db.prepare('INSERT INTO project_documents(id,project_id,kind,name,mime,size,creator,author,author_role,created) VALUES(?,?,?,?,?,?,?,?,?,?)').bind('claim-photo',p.id,'photo','photo.png','image/png',10,before.userId,'Guest','internal',date).run();
+ for(const uid of [before.userId,'supabase:'+user.id])await db.prepare('INSERT INTO photo_likes(project_id,photo_id,user_id,created) VALUES(?,?,?,?)').bind(p.id,'claim-photo',uid,date).run();
  const signedIn=await call('/api/auth',{action:'signin',email:user.email,password:'contract-test-password'});assert.equal(signedIn.status,200);assert(signedIn.cookies.some(c=>c.includes('HttpOnly')&&c.includes('Secure')&&c.includes('SameSite=None')));
  const permanent=await call('/api/review?project='+p.id);assert.equal(permanent.userId,'supabase:'+user.id);assert.equal(permanent.guest,false);assert.equal(permanent.role,'owner');assert.equal(permanent.records.length,10);assert(validationCalls>0);
  const owner=await db.prepare('SELECT owner FROM projects WHERE id=?').bind(p.id).first();assert.equal(owner.owner,'supabase:'+user.id);
+ assert.equal((await db.prepare('SELECT creator FROM project_documents WHERE id=?').bind('claim-photo').first()).creator,'supabase:'+user.id);
+ const claimedLikes=await db.prepare('SELECT user_id FROM photo_likes WHERE photo_id=?').bind('claim-photo').all();assert.deepEqual(claimedLikes.results.map(r=>r.user_id),['supabase:'+user.id]);
  assert.equal((await db.prepare('SELECT count(*) AS n FROM guest_sessions').first()).n,0);
  const staleGuest=await mf.dispatchFetch('https://review.test/api/review?project='+p.id,{headers:{Cookie:'octava_guest='+oldGuest}});assert.equal(staleGuest.status,401);
  const sessionEntry=[...jar].find(([name,value])=>name.includes('auth-token')&&value.startsWith('base64-'));assert(sessionEntry);const savedSession=JSON.parse(Buffer.from(sessionEntry[1].slice(7),'base64url').toString());savedSession.expires_at=Math.floor(Date.now()/1000)-30;jar.set(sessionEntry[0],'base64-'+Buffer.from(JSON.stringify(savedSession)).toString('base64url'));const refreshed=await call('/api/auth');assert.equal(refreshed.user.id,'supabase:'+user.id);assert.equal(refreshCalls,1);assert(refreshed.cookies.some(c=>c.includes('HttpOnly')));

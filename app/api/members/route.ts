@@ -1,15 +1,15 @@
 import {z} from 'zod';
-import {access,db,error,fail,json,origin} from '@/lib/server';
+import {access,db,error,fail,json,origin,profession} from '@/lib/server';
 import {withSession} from '@/lib/supabase-server';
 export const GET=withSession(async(req)=>{try{
  const a=await access(req,new URL(req.url).searchParams.get('project'));if(a.role==='client')fail('Your team manages project access.',403);
  const rows=(await db().prepare('SELECT id,email,name,profession,access,user_id FROM project_members WHERE project_id=? ORDER BY name').bind(a.project.id).all<any>()).results;
- return json({members:[{id:'owner',name:a.role==='owner'?a.name:'Project administrator',email:a.role==='owner'?a.email:'',profession:a.project.owner_profession,access:'editor',joined:true,owner:true},...rows.map(m=>({...m,user_id:undefined,joined:!!m.user_id}))]});
+ return json({members:[{id:'owner',name:a.role==='owner'?a.name:'Project administrator',email:a.role==='owner'?a.email:'',profession:profession(a.project.owner_profession),access:'editor',joined:true,owner:true},...rows.map(m=>({...m,profession:profession(m.profession),user_id:undefined,joined:!!m.user_id}))]});
 }catch(e){return error(e)}});
 export const POST=withSession(async(req)=>{try{
  origin(req);const b:any=await req.json(),a=await access(req,b.projectId);if(a.role!=='owner')fail('Only the project administrator can manage people.',403);
  if(b.action==='remove'){await db().prepare('DELETE FROM project_members WHERE id=? AND project_id=?').bind(z.string().parse(b.id),a.project.id).run();return json({ok:true})}
- const job=z.enum(['architect','owner','builder']).parse(b.profession);
+ const job=z.enum(['internal','owner','builder','other']).parse(b.profession);
  if(b.id==='owner'){await db().prepare('UPDATE projects SET owner_profession=? WHERE id=?').bind(job,a.project.id).run();return json({ok:true})}
  const email=z.string().trim().email().max(254).parse(b.email).toLowerCase(),name=z.string().trim().min(1).max(120).parse(b.name),permission=z.enum(['editor','client']).parse(b.access);
  if(email===a.email)fail('Use your administrator entry to change your role.');

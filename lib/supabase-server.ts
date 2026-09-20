@@ -5,6 +5,7 @@ const clients=new WeakMap<Request,SupabaseClient>();
 const cookies=new WeakMap<Request,Map<string,string>>();
 const users=new WeakMap<Request,Promise<User|null>>();
 export function authConfigured(){const e=env as unknown as Record<string,string>;return !!(e.SUPABASE_URL&&e.SUPABASE_PUBLISHABLE_KEY)}
+export function authEmailReady(){return authConfigured()&&(env as unknown as Record<string,string>).SUPABASE_AUTH_EMAIL_READY==='true'}
 export function authClient(req:Request){
  if(clients.has(req))return clients.get(req)!;
  const e=env as unknown as Record<string,string>;

@@ -8,9 +8,9 @@ Live app: [octava-plan-review.mattusher.chatgpt.site](https://octava-plan-review
 | --- | --- |
 | Source code and version history | [theuninspiredarchitect/octavareview](https://github.com/theuninspiredarchitect/octavareview) on GitHub |
 | App and API hosting | Sites, running a Cloudflare Worker |
-| Projects, annotations, tasks, comments and access links | Cloudflare D1, bound as `DB` |
-| Original PDFs and task attachments | Cloudflare R2, bound as `BUCKET` |
-| Permanent identities | Supabase Auth, when runtime settings are configured |
+| Projects, plan folders, annotations, tasks, comments, photo likes and access links | Cloudflare D1, bound as `DB` |
+| Original PDFs, task attachments, photos, files and specifications | Cloudflare R2, bound as `BUCKET` |
+| Permanent identities | Supabase Auth; first administrator and production email setup remain pending |
 | Computer, iPad and iPhone access | The same HTTPS app URL; optional browser installation |
 
 Vercel is not required. Supabase Auth is integrated for permanent accounts and needs its own project and runtime settings. D1 and R2 retain the existing project data and files; this change does not move them into Supabase. See [Supabase setup](SUPABASE.md). GitHub stores the source; pushing code there does not move project data, upload drawings, or deploy a new version of the live app.
@@ -40,6 +40,8 @@ Send a Client review link from the app for client feedback, or a Team editor lin
 On iPad or iPhone, open the app in Safari and use Share → Add to Home Screen. On a computer, use the browser's install option when available or bookmark the app. Installation still uses the same hosted backend. Saving requires an internet connection; offline editing is not implemented.
 
 Anonymous owner sessions are tied to the browser, last 30 days and are lost when its cookies are cleared. Installing the app does not create a permanent owner account. Permanent account registration, sign-in, email confirmation and password reset are implemented through Supabase Auth and become available after the account setup is completed.
+
+Active plan and task views receive cloud updates every 2.5 seconds, and every 15 seconds in the background. Photos/files refresh every 3 seconds while visible, and projects every 5 seconds. Focus and reconnect trigger refreshes too. This is automatic polling, not a WebSocket Realtime service. A conflicting edit never silently replaces an open task draft. All roles see plan feedback by default; role filters are optional.
 
 ## What belongs in Git
 
