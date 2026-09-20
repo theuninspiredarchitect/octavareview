@@ -1,0 +1,1 @@
+ALTER TABLE `files` ADD `page_count` integer DEFAULT 1 NOT NULL;

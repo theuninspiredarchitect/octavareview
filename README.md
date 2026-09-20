@@ -41,7 +41,9 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-The build creates `dist/server/wrangler.json`, which configures local D1 and R2 emulation. Initialize a **new local database once**, in this order:
+Development and build commands copy the PDF.js worker, fonts, character maps and WASM files from the locked dependency into `public/pdf/`. These generated assets and their accompanying licenses are included in the built app; they do not need to be committed to Git.
+
+The build also creates `dist/server/wrangler.json`, which configures local D1 and R2 emulation. Initialize a **new local database once**, in this order:
 
 ```sh
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_mixed_hannibal_king.sql
