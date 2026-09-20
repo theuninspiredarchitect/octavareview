@@ -226,4 +226,9 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .workspace-subheader:not(.navigation-subheader) .review-actions{min-width:0;gap:3px}
  .workspace-subheader:not(.navigation-subheader) .review-actions>.choice{width:106px;min-width:0;padding-left:7px;padding-right:5px}
  .workspace-subheader:not(.navigation-subheader) .review-actions .icon-button{min-width:32px;width:32px}
+ .task-board,.task-list{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y}
+ .task-board{width:100%;max-width:100%}
+ .board-columns,.board-columns>section,.board-columns .task-card{min-width:0;max-width:100%}
+ .review-panel{overflow-x:hidden}
+ .task-card,.task-card h3,.task-card p{overflow-wrap:anywhere}
 }
