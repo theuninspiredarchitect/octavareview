@@ -237,6 +237,10 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .canvas-bottom{bottom:5px;left:7px;right:7px}
  .zoom-control{height:27px}.zoom-control button{height:25px;width:27px}.zoom-control span{min-width:31px}
  .canvas-context{bottom:40px;height:28px;min-height:28px;padding:0 7px;gap:5px}
+ .app-header.drawing-header{display:none}
+ .export-button{display:none!important}
+ .overview-nav .icon-button{width:auto;min-width:34px;padding:0 7px}.overview-nav .icon-button span{display:inline;font-size:12px}
+ .navigation-subheader{grid-template-columns:auto 1fr}.navigation-subheader .breadcrumbs{display:none}
 }
 @media(max-width:760px){
  [data-slot=select-content]{max-width:calc(100vw - 16px)}
