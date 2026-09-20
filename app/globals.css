@@ -218,3 +218,12 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
 @media(max-width:760px) and (pointer:coarse){
  .markup-toolbar.mobile-open{display:flex;grid-template-columns:none;width:auto;max-height:none}.brush-control.mobile-open{left:8px;width:42px}.measure-options{top:128px}.drawing-stage:has(.area-mode-options) .measure-options{top:128px}
 }
+@media(max-width:760px){
+ [data-slot=select-content]{max-width:calc(100vw - 16px)}
+ .workspace-subheader:not(.navigation-subheader){display:grid;grid-template-columns:minmax(58px,1fr) auto;gap:5px;padding-left:7px;padding-right:7px}
+ .workspace-subheader:not(.navigation-subheader) .breadcrumbs{gap:5px;overflow:hidden}
+ .workspace-subheader:not(.navigation-subheader) .breadcrumbs>button:not(.icon-button),.workspace-subheader:not(.navigation-subheader) .breadcrumbs>svg,.workspace-subheader:not(.navigation-subheader) .breadcrumbs>.muted,.workspace-subheader:not(.navigation-subheader) .revision-badge{display:none}
+ .workspace-subheader:not(.navigation-subheader) .review-actions{min-width:0;gap:3px}
+ .workspace-subheader:not(.navigation-subheader) .review-actions>.choice{width:106px;min-width:0;padding-left:7px;padding-right:5px}
+ .workspace-subheader:not(.navigation-subheader) .review-actions .icon-button{min-width:32px;width:32px}
+}
