@@ -270,3 +270,23 @@ button:focus-visible,a:focus-visible{outline-color:#94b7ff}
  .task-fields label,.task-fields input,.task-fields textarea,.task-fields .choice{min-width:0;max-width:100%;width:100%}
  .conversation-filters{flex-wrap:wrap}
 }
+
+/* Compact mobile drawing chrome: one clear top tool row and one slim bottom row. */
+@media(max-width:760px){
+ .canvas-top-strip{display:none}
+ .markup-toolbar.mobile-open{top:6px;left:6px;right:76px;height:38px;max-height:38px;padding:2px 3px}
+ .markup-toolbar.mobile-open .tool-button{width:32px;height:32px;min-width:32px;flex-basis:32px}
+ .undo-controls,.drawing-stage:has(.markup-toolbar.mobile-open) .undo-controls{top:6px;right:6px;height:38px}
+ .undo-controls .icon-button{width:27px;height:32px;min-width:27px;min-height:32px}
+ .brush-control.mobile-open{top:50px;left:6px;max-height:calc(100% - 116px)}
+ .area-mode-options,.text-options,.drawing-stage:has(.markup-toolbar.mobile-open) .area-mode-options,.drawing-stage:has(.markup-toolbar.mobile-open) .text-options{top:50px;right:6px}
+ .measure-options,.drawing-stage:has(.markup-toolbar.mobile-open) .measure-options{top:94px;right:6px}
+ .workspace-subheader:not(.navigation-subheader) .review-actions>.choice{width:132px;min-width:132px;padding-left:8px;padding-right:6px}
+ .workspace-subheader:not(.navigation-subheader) .review-actions>.choice>span{overflow:visible;text-overflow:clip}
+ .drawing-statusbar{height:28px;min-height:28px;padding:0 max(6px,env(safe-area-inset-right)) 0 max(6px,env(safe-area-inset-left));gap:5px}
+ .drawing-statusbar>button{width:28px;height:26px;min-width:28px;padding:0;margin-left:auto}
+ .drawing-statusbar>.choice{height:24px;width:76px;min-width:76px;padding:0 3px}
+ .canvas-bottom{bottom:4px;left:6px;right:6px}
+ .canvas-context{bottom:37px;left:6px;right:6px;height:27px;min-height:27px;padding:0 6px}
+ .zoom-control{height:26px}.zoom-control button{height:24px;min-height:24px;width:26px;min-width:26px}.zoom-control span{min-width:29px}
+}
