@@ -60,7 +60,7 @@ const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,
  if(touches.current.size===2){const ts=[...touches.current.values()],r=container.current!.getBoundingClientRect(),center={x:(ts[0].x+ts[1].x)/2-r.left,y:(ts[0].y+ts[1].y)/2-r.top};pinch.current={distance:distance(ts[0],ts[1]),zoom,anchor:{x:(center.x-offset.x)/scale,y:(center.y-offset.y)/scale}};gesture.current=null;setDraftValue(null);erasing.current.clear();setEraseTick(t=>t+1);setActive(false);return}
  const base={id:e.pointerId,start:raw,screen:{x:e.clientX,y:e.clientY},pan};
  if(tool==='hand'||space||e.button===1){gesture.current={...base,kind:'pan'};return}if(!inside(raw))return;
- if(tool==='select'){const m=hideMarks?undefined:[...markups].reverse().find(m=>hitMarkup(m,sheet,raw,raw,5/scale));props.onSelect(m?.id||null);return}
+ if(tool==='select'){const m=hideMarks?undefined:[...markups].reverse().find(m=>hitMarkup(m,sheet,raw,raw,5/scale));props.onSelect(m?.id||null);if(e.pointerType==='touch'&&!m)gesture.current={...base,kind:'pan'};return}
  if(tool==='eraser'){gesture.current={...base,kind:'erase'};setActive(true);eraseLast.current=raw;sweep(raw);setCursor(raw);return}
  const anchor=chainRef.current.at(-1),p=precisionTool&&tool!=='pin'?exact(raw,e.shiftKey,anchor):clamp(raw);setCursor(p);setActive(true);
  if(tool==='pin'||tool==='text'){gesture.current={...base,kind:tool};return}
