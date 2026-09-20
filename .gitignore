@@ -49,3 +49,7 @@ next-env.d.ts
 
 # Generated from the locked pdfjs-dist package before dev/build.
 /public/pdf/
+
+# Local Worker environment values.
+.dev.vars*
+!.env.example

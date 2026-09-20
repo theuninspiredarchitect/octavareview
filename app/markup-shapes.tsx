@@ -13,7 +13,7 @@ export default function MarkupShape({m,s,selected=false,onClick}:{m:Markup;s:She
  if(m.kind==='area')shape=<polygon points={vertices.map(p=>p.x+','+p.y).join(' ')} fill={m.color+'14'}/>;
  if(m.kind==='ellipse')shape=<ellipse cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2}/>;
  if(m.kind==='arrow'){const angle=Math.atan2(b.y-a.y,b.x-a.x),l=Math.max(10,m.width*4);shape=<>{line}<path d={'M'+(b.x-l*Math.cos(angle-.45))+' '+(b.y-l*Math.sin(angle-.45))+'L'+b.x+' '+b.y+'L'+(b.x-l*Math.cos(angle+.45))+' '+(b.y-l*Math.sin(angle+.45))}/></>}
- if(m.kind==='text')shape=<text x={a.x} y={a.y} fontSize={Math.max(14,m.width*5)} fill={m.color} stroke="none" fontFamily="Arial,sans-serif">{(m.text||'').split('\n').map((t,i)=><tspan key={i} x={a.x} dy={i?Math.max(17,m.width*6):0}>{t}</tspan>)}</text>;
+ if(m.kind==='text')shape=<text x={a.x} y={a.y} fontSize={m.textSize||Math.max(14,m.width*5)} fill={m.color} stroke="none" fontFamily="Arial,sans-serif">{(m.text||'').split('\n').map((t,i)=><tspan key={i} x={a.x} dy={i?(m.textSize?m.textSize*1.2:Math.max(17,m.width*6)):0}>{t}</tspan>)}</text>;
  const measured=m.kind==='measure'||m.kind==='area',label=measured?labelPoint(m):a,text=measured?measureText(m,s):'',labelWidth=Math.max(94,text.length*7.5+18);
  return <g data-markup-id={m.id} onPointerDown={onClick} stroke={m.color} strokeWidth={m.width} strokeLinecap="round" strokeLinejoin="round" fill="none" style={{cursor:onClick?'pointer':undefined}}>
  {selected&&<g data-selection stroke="#75bce6" strokeWidth={m.width+7} opacity=".3">{shape}</g>}{shape}
