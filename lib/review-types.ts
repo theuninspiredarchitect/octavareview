@@ -14,7 +14,7 @@ export type TaskPhoto=Pick<ProjectAsset,'id'|'name'|'mime'|'size'|'created'|'sou
 export type Task = {id:string;type:'task';sheetId:string|null;location?:string;photos?:TaskPhoto[];number:number;title:string;description:string;status:'open'|'progress'|'done';priority:'low'|'medium'|'high';assignee:string;due:string;source:'Internal review'|'Client review'|'Site visit';visibility:'internal'|'client';audience?:Audience;authorRole?:Profession;creatorId?:string;position:Point|null;author:string;created:string;version?:number};
 export type RecordItem=Sheet|Markup|Task|Comment;
 export type Project={id:string;name:string;created:string;planCount?:number;taskCount?:number;role?:'owner'|'editor'|'client';cover?:Sheet};
-export type ReviewData={project:Project;records:RecordItem[];role:'owner'|'editor'|'client';profession?:Profession;userId?:string;name:string;guest?:boolean;projects:Project[];folders:PlanFolder[]};
+export type ReviewData={canCreateProjects?:boolean;canManageUsers?:boolean;accountRole?:'admin'|'user';project:Project;records:RecordItem[];role:'owner'|'editor'|'client';profession?:Profession;userId?:string;name:string;guest?:boolean;projects:Project[];folders:PlanFolder[]};
 export const uid=()=>{if(typeof crypto.randomUUID==='function')return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};
 export const statusNames={open:'Open',progress:'In progress',done:'Resolved'};
 export const inkPalette=[

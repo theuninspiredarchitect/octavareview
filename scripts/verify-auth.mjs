@@ -36,6 +36,11 @@ try{
  const claimedLikes=await db.prepare('SELECT user_id FROM photo_likes WHERE photo_id=?').bind('claim-photo').all();assert.deepEqual(claimedLikes.results.map(r=>r.user_id),['supabase:'+user.id]);
  assert.equal((await db.prepare('SELECT count(*) AS n FROM guest_sessions').first()).n,0);
  const staleGuest=await mf.dispatchFetch('https://review.test/api/review?project='+p.id,{headers:{Cookie:'octava_guest='+oldGuest}});assert.equal(staleGuest.status,401);
+ await db.prepare('INSERT INTO projects(id,owner,name,created) VALUES(?,?,?,?)').bind('membership-transfer','another-owner','Invited project',date).run();
+ await db.prepare('INSERT INTO project_members(id,project_id,user_id,email,name,profession,access,created) VALUES(?,?,?,?,?,?,?,?)').bind('membership-transfer-row','membership-transfer','verified-platform-user',user.email,'QA account','owner','client',date).run();
+ assert.equal((await call('/api/auth',{action:'signin',email:user.email,password:'contract-test-password'},{'oai-authenticated-user-id':'verified-platform-user','oai-authenticated-user-email':user.email})).status,200);
+ assert.equal((await call('/api/review?project=membership-transfer')).role,'client','Verified sign-in retains an existing platform membership');
+ assert.equal((await db.prepare('SELECT user_id FROM project_members WHERE id=?').bind('membership-transfer-row').first()).user_id,'supabase:'+user.id);
  const sessionEntry=[...jar].find(([name,value])=>name.includes('auth-token')&&value.startsWith('base64-'));assert(sessionEntry);const savedSession=JSON.parse(Buffer.from(sessionEntry[1].slice(7),'base64url').toString());savedSession.expires_at=Math.floor(Date.now()/1000)-30;jar.set(sessionEntry[0],'base64-'+Buffer.from(JSON.stringify(savedSession)).toString('base64url'));const refreshed=await call('/api/auth');assert.equal(refreshed.user.id,'supabase:'+user.id);assert.equal(refreshCalls,1);assert(refreshed.cookies.some(c=>c.includes('HttpOnly')));
  const crossSite=await call('/api/auth',{action:'signout'},{Origin:'https://unrelated.test'});assert.equal(crossSite.status,403);
  assert.equal((await call('/api/auth',{action:'signout'})).status,200);assert.equal((await call('/api/auth')).user,null);

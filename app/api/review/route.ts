@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {withSession} from '@/lib/supabase-server';
-import {access,db,error,fail,getRecords,identity,json,origin,visible,allowedSheet,projectList,hash,profession} from '@/lib/server';
+import {access,db,error,fail,getRecords,identity,json,origin,visible,allowedSheet,projectList,hash,profession,workspacePermissions} from '@/lib/server';
 import {projectAssets} from '@/lib/project-assets';
 import {sampleRecords} from '@/lib/review-types';
 import {validArea,areaPoints} from '@/lib/drawing-geometry';
@@ -18,7 +18,7 @@ async function handleGET(req:Request){try{
  const projects=a.shareId?[]:await projectList(req);
  const allFolders=(await db().prepare('SELECT id,name,version,created FROM plan_folders WHERE project_id=? ORDER BY name COLLATE NOCASE').bind(a.project.id).all()).results;
  const folders=a.shareId?allFolders.filter((f:any)=>records.some(r=>r.type==='sheet'&&r.folderId===f.id)):allFolders;
- const payload={project:{id:a.project.id,name:a.project.name,created:a.project.created},records,role:a.role,profession:a.profession,userId:a.user,name:a.name,guest:a.guest,projects,folders};
+ const payload={project:{id:a.project.id,name:a.project.name,created:a.project.created},records,role:a.role,accountRole:a.accountRole||'user',profession:a.profession,userId:a.user,name:a.name,guest:a.guest,projects,folders,...await workspacePermissions(req)};
  const etag='"'+await hash(JSON.stringify(payload))+'"';
  if(req.headers.get('if-none-match')===etag)return new Response(null,{status:304,headers:{ETag:etag,'Cache-Control':'private, no-store'}});
  const response=json(payload);response.headers.set('ETag',etag);return response;
@@ -28,6 +28,7 @@ async function handlePOST(req:Request){try{
  if(b.action==='createProject'){
   if(req.headers.get('x-review-token'))fail('Only the workspace owner can create projects.',403);
   const u=await identity(req);if(!u.id)fail('Your guest session could not be opened. Allow cookies and try again.',401);
+  if(!(await workspacePermissions(req)).canCreateProjects)fail('An admin needs to invite you to a project.',403);
   const name=z.string().trim().min(1).max(150).parse(b.name),id=crypto.randomUUID(),now=new Date().toISOString();
   const sample=b.sample===true?sampleRecords():[];
   await db().batch([db().prepare('INSERT INTO projects (id,owner,name,created,next_task,owner_profession) VALUES (?,?,?,?,?,?)').bind(id,u.id,name,now,sample.length?5:1,u.profession),...sample.map(r=>db().prepare('INSERT INTO records (id,project_id,type,sheet_id,data,creator,version,created) VALUES (?,?,?,?,?,?,1,?)').bind(r.id,id,r.type,'sheetId'in r?r.sheetId:null,JSON.stringify(r),u.id,now))]);

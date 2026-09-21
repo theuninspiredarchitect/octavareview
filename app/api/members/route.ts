@@ -4,14 +4,18 @@ import {withSession} from '@/lib/supabase-server';
 import {accountAdminAllowed,accountLinksConfigured} from '@/lib/account-admin';
 export const GET=withSession(async(req)=>{try{
  const a=await access(req,new URL(req.url).searchParams.get('project'));if(a.role==='client')fail('Your team manages project access.',403);
- const rows=(await db().prepare('SELECT id,email,name,profession,access,user_id FROM project_members WHERE project_id=? ORDER BY name').bind(a.project.id).all<any>()).results;
- return json({canManage:a.role==='owner',canManageAccounts:a.role==='owner'&&accountAdminAllowed(a)&&accountLinksConfigured(),accountLinksReady:accountLinksConfigured(),members:[{id:'owner',name:a.role==='owner'?a.name:'Project administrator',email:a.role==='owner'?a.email:'',profession:profession(a.project.owner_profession),access:'editor',joined:true,owner:true},...rows.map(m=>({...m,profession:profession(m.profession),user_id:undefined,joined:!!m.user_id}))]});
+ const rows=(await db().prepare('SELECT id,email,name,profession,access,account_role,user_id FROM project_members WHERE project_id=? AND enabled=1 ORDER BY name').bind(a.project.id).all<any>()).results;
+ return json({canManage:a.role==='owner',canManageAccounts:a.role==='owner'&&accountAdminAllowed(a)&&accountLinksConfigured(),accountLinksReady:accountLinksConfigured(),members:[{id:'owner',name:a.project.owner===a.user?a.name:'Workspace owner',email:a.project.owner===a.user?a.email:'',profession:profession(a.project.owner_profession),access:'editor',joined:true,owner:true},...rows.map(m=>({...m,profession:profession(m.profession),user_id:undefined,joined:!!m.user_id}))]});
 }catch(e){return error(e)}});
 export const POST=withSession(async(req)=>{try{
  origin(req);const b:any=await req.json(),a=await access(req,b.projectId);if(a.role!=='owner')fail('Only the project administrator can manage people.',403);
- if(b.action==='remove'){const id=z.string().parse(b.id);await db().batch([db().prepare('DELETE FROM project_members WHERE id=? AND project_id=?').bind(id,a.project.id),db().prepare('UPDATE account_links SET used=1 WHERE member_id=? AND project_id=?').bind(id,a.project.id)]);return json({ok:true})}
+ if(b.id&&b.id!=='owner'){
+  const target=await db().prepare('SELECT user_id,email FROM project_members WHERE id=? AND project_id=?').bind(b.id,a.project.id).first<any>();
+  if(target&&(target.user_id===a.user||target.email===a.email||target.user_id===a.project.owner))fail('Another admin must change your own access. The workspace owner remains protected.',403);
+ }
+ if(b.action==='remove'){const id=z.string().parse(b.id);await db().batch([db().prepare('UPDATE project_members SET enabled=0 WHERE id=? AND project_id=?').bind(id,a.project.id),db().prepare('UPDATE account_links SET used=1 WHERE member_id=? AND project_id=?').bind(id,a.project.id)]);return json({ok:true})}
  const job=z.enum(['internal','owner','builder','other']).parse(b.profession);
- if(b.id==='owner'){await db().prepare('UPDATE projects SET owner_profession=? WHERE id=?').bind(job,a.project.id).run();return json({ok:true})}
+ if(b.id==='owner'){if(a.project.owner!==a.user)fail('Only the workspace owner can edit this entry.',403);await db().prepare('UPDATE projects SET owner_profession=? WHERE id=?').bind(job,a.project.id).run();return json({ok:true})}
  const email=z.string().trim().email().max(254).parse(b.email).toLowerCase(),name=z.string().trim().min(1).max(120).parse(b.name),permission=z.enum(['editor','client']).parse(b.access);
  if(email===a.email)fail('Use your administrator entry to change your role.');
  if(b.id){const old=await db().prepare('SELECT email FROM project_members WHERE id=? AND project_id=?').bind(b.id,a.project.id).first<any>();if(!old)fail('Person not found.',404);if(old.email!==email)await db().prepare('UPDATE account_links SET used=1 WHERE member_id=? AND project_id=?').bind(b.id,a.project.id).run();await db().prepare('UPDATE project_members SET email=?,name=?,profession=?,access=?,user_id=CASE WHEN email=? THEN user_id ELSE NULL END WHERE id=? AND project_id=?').bind(email,name,job,permission,email,b.id,a.project.id).run()}
