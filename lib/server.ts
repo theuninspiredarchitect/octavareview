@@ -63,7 +63,7 @@ export async function access(req:Request,projectId?:string|null):Promise<Access>
  if(!m.user_id)await db().prepare('UPDATE project_members SET user_id=? WHERE id=? AND user_id IS NULL').bind(u.id,m.id).run();
  return {project:p,role:m.access,profession:profession(m.profession),sheets:[],user:u.id,name:m.name||u.name,email:u.email,guest:u.guest};
 }
-export function allowedSheet(a:Access,id:string){return !a.shareId||a.shareScope==='project'||a.sheets.includes(id)}
+export function allowedSheet(a:Access,id:string|null){return !a.shareId||a.shareScope==='project'||!!id&&a.sheets.includes(id)}
 export function visible(a:Access,r:any){
  if(!allowedSheet(a,r.type==='sheet'?r.id:r.sheetId))return false;
  // Roles classify work for filtering. They do not hide markups, tasks or discussion.
@@ -74,7 +74,7 @@ export async function getRecords(a:Access):Promise<RecordItem[]>{
  const {results}=await db().prepare('SELECT data,version,creator FROM records WHERE project_id = ? ORDER BY created ASC').bind(a.project.id).all<any>();
  const parsed=results.map((r:any)=>{const data=JSON.parse(r.data);return {...data,...('authorRole'in data?{authorRole:profession(data.authorRole)}:{}),...(Array.isArray(data.audience)?{audience:Array.from(new Set(data.audience.map(profession)))}:{}),version:r.version,creatorId:r.creator,...(data.type==='markup'?{editable:a.role!=='client'||r.creator===a.user}:{})}});
  const sheetIds=new Set(parsed.filter((r:any)=>r.type==='sheet'&&visible(a,r)).map((r:any)=>r.id));
- const records=parsed.filter((r:any)=>visible(a,r)&&(r.type==='sheet'||sheetIds.has(r.sheetId)));
+ const records=parsed.filter((r:any)=>visible(a,r)&&(r.type==='sheet'||sheetIds.has(r.sheetId)||((r.type==='task'||r.type==='comment')&&!r.sheetId)));
  const taskIds=new Set(records.filter((r:any)=>r.type==='task').map((r:any)=>r.id));
  return records.filter((r:any)=>r.type!=='comment'||taskIds.has(r.taskId));
 }

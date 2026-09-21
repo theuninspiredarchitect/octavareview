@@ -1,0 +1,43 @@
+import {createRequire} from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),require=createRequire(root+'/package.json');
+const {Miniflare}=require(require.resolve('miniflare',{paths:[require.resolve('wrangler')]}));
+const mf=new Miniflare({modules:['index.js',...fs.readdirSync(root+'/dist/server',{recursive:true}).filter(f=>f.endsWith('.js')&&f!=='index.js')].map(file=>({type:'ESModule',path:root+'/dist/server/'+file})),modulesRoot:root+'/dist/server',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET']});
+const owner={'oai-authenticated-user-id':'meeting-test-owner','oai-authenticated-user-email':'qa@example.test'},outsider={'oai-authenticated-user-id':'outside','oai-authenticated-user-email':'outside@example.test'},now=new Date().toISOString();
+async function call(route,body,headers=owner){const r=await mf.dispatchFetch('https://test.local'+route,{method:body?'POST':'GET',headers:{...headers,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,...await r.json()};}
+const post=(projectId,action,rest={})=>call('/api/meetings',{projectId,action,...rest});
+try{
+ const db=await mf.getD1Database('DB');for(const f of fs.readdirSync(root+'/drizzle').filter(f=>f.endsWith('.sql')).sort())for(const sql of fs.readFileSync(root+'/drizzle/'+f,'utf8').split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
+ const project=(await call('/api/review',{action:'createProject',name:'Meeting QA',sample:true})).id;
+ const form=new FormData();form.append('kind','photo');form.append('file',new File([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64')],'site-photo.png',{type:'image/png'}));
+ const encoded=new Request('https://test.local',{method:'POST',body:form});const upload=await mf.dispatchFetch('https://test.local/api/documents?project='+project,{method:'POST',headers:{...owner,'Content-Type':encoded.headers.get('content-type')},body:await encoded.arrayBuffer()});assert.equal(upload.status,201);const {asset}=await upload.json();
+ const base={id:crypto.randomUUID(),kind:'site',title:'Weekly site visit',date:now.slice(0,10),location:'Terrace',participants:'Studio, builder',summary:'Review threshold.',entries:[{id:crypto.randomUUID(),kind:'observation',title:'Check door threshold',text:'Verify height before tiling.',location:'Living room',photoIds:[asset.id],include:true}],version:0,created:now,updated:now,photoGroupId:null};
+ let created=await post(project,'save',{meeting:base});assert.equal(created.status,200);assert(created.meeting.photoGroupId);let m=created.meeting;
+ assert.equal((await call('/api/meetings?project='+project,null,outsider)).status,403);
+ assert.equal((await post(project,'save',{meeting:base})).status,409);
+ const convert=await post(project,'task',{id:m.id,version:m.version,entryId:m.entries[0].id});assert.equal(convert.status,200);m=convert.meeting;
+ let review=await call('/api/review?project='+project),task=review.records.find(r=>r.id===m.entries[0].taskId);assert(task);assert.equal(task.sheetId,null);assert.equal(task.photos[0].id,asset.id);assert.equal(task.location,'Living room');
+ const replay=await post(project,'task',{id:m.id,version:m.version,entryId:m.entries[0].id});assert.equal(replay.meeting.entries[0].taskId,task.id);
+ const comment=await call('/api/review',{action:'save',projectId:project,record:{id:crypto.randomUUID(),type:'comment',sheetId:null,taskId:task.id,text:'Photo received. We will check this tomorrow.',author:'Builder',visibility:'client',created:now}});assert.equal(comment.status,200);assert((await call('/api/review?project='+project)).records.some(r=>r.id===comment.record.id));
+ const sheetShare=await call('/api/shares',{projectId:project,role:'client',label:'Plan-only QA',sheetIds:['sample-ground']});const scoped={'x-review-token':sheetShare.token};
+ assert.equal((await call('/api/meetings?project='+project,null,scoped)).status,403);assert(!(await call('/api/review?project='+project,null,scoped)).records.some(r=>r.id===task.id));
+ const denied=await call('/api/review',{action:'save',projectId:project,record:{...task,id:crypto.randomUUID(),version:undefined}},scoped);assert([403,404].includes(denied.status));
+ const reportId=crypto.randomUUID(),issued=await post(project,'issue',{id:m.id,version:m.version,reportId});assert.equal(issued.status,201);assert.equal(issued.report.revision,1);assert.equal(issued.report.tasks[0].status,'open');assert.equal(issued.report.assets[0].id,asset.id);
+ assert.equal((await post(project,'issue',{id:m.id,version:m.version,reportId})).report.revision,1);
+ const taskUpdated=await call('/api/review',{action:'save',projectId:project,record:{...task,status:'done',sheetId:'sample-ground',position:{x:50,y:100}}});assert.equal(taskUpdated.status,200);task=taskUpdated.record;
+ review=await call('/api/review?project='+project);assert.equal(review.records.find(r=>r.id===comment.record.id).sheetId,'sample-ground');
+ const stored=(await call('/api/meetings?project='+project)).reports[0];assert.equal(stored.tasks[0].status,'open');assert.equal(stored.tasks[0].sheetId,null);
+ m=(await post(project,'save',{meeting:{...m,entries:[...m.entries,{id:crypto.randomUUID(),kind:'note',title:'Exclude this private draft',text:'Still checking',include:false}]}})).meeting;
+ const second=await post(project,'issue',{id:m.id,version:m.version,reportId:crypto.randomUUID()});assert.equal(second.report.revision,2);assert.equal(second.report.meeting.entries.length,1);assert.equal(second.report.tasks[0].status,'done');
+ const selection=await post(project,'save',{meeting:{...base,id:crypto.randomUUID(),kind:'selection',entries:[{id:crypto.randomUUID(),kind:'selection',title:'Dining pendant',text:'Above the dining table',photoIds:[asset.id],vendor:'Lighting supplier',model:'P-01',color:'Black',finish:'Matte',price:'1,250.00',currency:'USD',selectionStatus:'Selected'}]}});assert.equal(selection.status,200);
+ const toSpec=await post(project,'specification',{id:selection.meeting.id,version:selection.meeting.version,entryId:selection.meeting.entries[0].id});assert.equal(toSpec.status,200);const specs=await call('/api/specifications?project='+project);const spec=specs.entries.find(s=>s.id===toSpec.meeting.entries[0].specificationId);assert.equal(spec.photoId,asset.id);assert.equal(spec.stage,'Selected');assert.equal(spec.quotes[0].revisions[0].amount,125000);assert.equal(spec.payments.length,0);assert.equal(spec.purchasedBy,'Reference only');
+ const noPrice=await post(project,'save',{meeting:{...base,id:crypto.randomUUID(),kind:'selection',entries:[{id:crypto.randomUUID(),kind:'selection',title:'Stone sample',text:'',selectionStatus:'Selected'}]}});const linked=await post(project,'specification',{id:noPrice.meeting.id,version:1,entryId:noPrice.meeting.entries[0].id});assert.equal(linked.status,200);
+ const badPhoto=await post(project,'save',{meeting:{...base,id:crypto.randomUUID(),entries:[{...base.entries[0],photoIds:['not-this-project']}]}});assert.equal(badPhoto.status,404);
+ let backup=await call('/api/backups',{projectId:project,action:'create'});for(let i=0;backup.status!=='ready'&&i<20;i++)backup=await call('/api/backups',{projectId:project,action:'step',id:backup.id});assert.equal(backup.status,'ready');let restore=await call('/api/backups',{projectId:project,action:'restore',id:backup.id});for(let i=0;restore.status!=='ready'&&i<20;i++)restore=await call('/api/backups',{projectId:project,action:'restoreStep',id:restore.id});assert.equal(restore.status,'ready');
+ const restored=await call('/api/meetings?project='+restore.projectId);assert.equal(restored.meetings.length,3);assert.equal(restored.reports.length,2);assert.notEqual(restored.meetings[0].id,m.id);assert.notEqual(restored.reports[0].assets[0].id,asset.id);
+ const restoredTaskId=restored.reports[0].tasks[0].id;assert((await call('/api/review?project='+restore.projectId)).records.some(r=>r.id===restoredTaskId));
+ console.log('PASS: isolated project access, photo upload, photo-first tasks without plans, comments and pin moves, conflict checks, task linking, immutable reports, selection quotes, and backup/restore of meetings and photos.');
+}finally{await mf.dispose()}

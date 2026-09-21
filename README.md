@@ -1,3 +1,5 @@
+> **V2 prototype:** This branch deploys a separate app with separate data. See [the V2 guide](docs/V2-PROTOTYPE.md). The original app and GitHub main are preserved.
+
 # Octava Review
 
 A focused PDF drawing review application for internal coordination, client feedback and site visits. A minimal charcoal interface keeps the drawing at the center, with compact tools and a live stroke thickness slider.

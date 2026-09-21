@@ -10,8 +10,8 @@ const base={audience,id:z.string().min(1).max(100),created:z.string().max(60),ve
 const vis=z.enum(['internal','client']);
 const sheet=z.object({...base,type:z.literal('sheet'),code:z.string().max(100),name:z.string().min(1).max(200),revision:z.string().max(40),page:z.number().int().min(1).max(500),width:z.number().positive().max(30000),height:z.number().positive().max(30000),fileId:z.string().max(100).optional(),groupId:z.string().max(100),folderId:z.string().max(100).optional(),sample:z.enum(['ground','roof','site']).optional(),calibration:z.number().positive().max(100000).optional(),unit:z.enum(['m','ft']).optional()});
 const mark=z.object({...base,type:z.literal('markup'),sheetId:z.string(),kind:z.enum(['pen','line','arrow','rect','ellipse','measure','area','text','photo']),photoId:z.string().min(1).max(100).optional(),points:z.array(point).min(1).max(20000),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),width:z.number().min(0.5).max(30),textSize:z.number().min(8).max(160).optional(),textStyle:z.enum(['plain','callout']).optional(),areaShape:z.enum(['rectangle','polygon']).optional(),precision:z.number().int().min(2).max(4).optional(),text:z.string().max(2000).optional(),visibility:vis,author:z.string().max(200)});
-const task=z.object({...base,type:z.literal('task'),sheetId:z.string(),number:z.number(),title:z.string().min(1).max(200),description:z.string().max(10000),status:z.enum(['open','progress','done']),priority:z.enum(['low','medium','high']),assignee:z.string().max(120),due:z.string().max(20),source:z.enum(['Internal review','Client review','Site visit']),visibility:vis,position:point.nullable(),author:z.string().max(200)});
-const comment=z.object({...base,type:z.literal('comment'),sheetId:z.string(),taskId:z.string(),text:z.string().max(10000),attachments:z.array(z.object({id:z.string().max(100)})).max(8).optional(),author:z.string().max(200),visibility:vis});
+const task=z.object({...base,type:z.literal('task'),sheetId:z.string().nullable(),location:z.string().max(200).optional(),photos:z.array(z.object({id:z.string().min(1).max(100)})).max(8).optional(),number:z.number(),title:z.string().min(1).max(200),description:z.string().max(10000),status:z.enum(['open','progress','done']),priority:z.enum(['low','medium','high']),assignee:z.string().max(120),due:z.string().max(20),source:z.enum(['Internal review','Client review','Site visit']),visibility:vis,position:point.nullable(),author:z.string().max(200)});
+const comment=z.object({...base,type:z.literal('comment'),sheetId:z.string().nullable(),taskId:z.string(),text:z.string().max(10000),attachments:z.array(z.object({id:z.string().max(100)})).max(8).optional(),author:z.string().max(200),visibility:vis});
 const recordSchema=z.discriminatedUnion('type',[sheet,mark,task,comment]);
 async function handleGET(req:Request){try{
  const a=await access(req,new URL(req.url).searchParams.get('project'));const records=await getRecords(a);
@@ -55,6 +55,10 @@ async function handlePOST(req:Request){try{
   if(prior?.kind==='photo'&&prior.photoId===r.photoId)r.text=prior.text;
   else{const photo=(await projectAssets(a)).find(f=>f.id===r.photoId&&f.kind==='photo');if(!photo)fail('Choose a photo available in this project.',404);r.text=photo.name;}
  }
+ if(r.type==='task'){
+  if(!r.sheetId&&r.position)fail('Choose a plan before placing a pin.');
+  if(r.photos?.length){const photos=new Map((await projectAssets(a)).filter(f=>f.kind==='photo').map(f=>[f.id,f]));r.photos=r.photos.map(p=>{const f=photos.get(p.id);if(!f)fail('Choose photos available in this project.',404);return {id:f.id,name:f.name,mime:f.mime,size:f.size,created:f.created,source:f.source}});}
+ }
  if(r.type==='sheet'){
   if(a.role==='client')fail('Clients cannot change drawing files or scale.',403);
   if(old){r.audience=JSON.parse(old.data).audience||[];r.folderId=JSON.parse(old.data).folderId;}
@@ -63,7 +67,7 @@ async function handlePOST(req:Request){try{
   if(r.fileId){const f=await db().prepare('SELECT id FROM files WHERE id = ? AND project_id = ?').bind(r.fileId,a.project.id).first();if(!f)fail('Upload the drawing before saving it.')}
  }else{
   if(!allowedSheet(a,r.sheetId))fail('This drawing is not part of the review.',403);
-  const s=await db().prepare("SELECT data FROM records WHERE project_id = ? AND id = ? AND type = 'sheet'").bind(a.project.id,r.sheetId).first<any>();if(!s||!visible(a,JSON.parse(s.data)))fail('Drawing not found.',404);
+  if(r.sheetId){const s=await db().prepare("SELECT data FROM records WHERE project_id = ? AND id = ? AND type = 'sheet'").bind(a.project.id,r.sheetId).first<any>();if(!s||!visible(a,JSON.parse(s.data)))fail('Drawing not found.',404);}else if(r.type==='markup')fail('Choose a drawing.',400);
   if(r.type==='comment'){const parent=await db().prepare("SELECT data FROM records WHERE project_id = ? AND id = ? AND type = 'task'").bind(a.project.id,r.taskId).first<any>();if(!parent||!visible(a,JSON.parse(parent.data))||JSON.parse(parent.data).sheetId!==r.sheetId)fail('Task not found.',404);r.visibility=JSON.parse(parent.data).visibility;
    if(!r.text.trim()&&!r.attachments?.length)fail('Write a message or attach a file.');
    const ids=r.attachments?.map(f=>f.id)||[];if(new Set(ids).size!==ids.length)fail('Duplicate attachments.');
@@ -79,7 +83,9 @@ async function handlePOST(req:Request){try{
  if(old){
   if(b.record.version!==old.version)fail('Someone updated this item. Refresh before saving your changes.',409);
   const prior=JSON.parse(old.data);if('author'in r){r.author=prior.author;(r as any).authorRole=profession(prior.authorRole);}if(r.type==='task')r.number=prior.number;r.created=prior.created;
-  const result=await db().prepare('UPDATE records SET data = ?, version = version + 1 WHERE project_id = ? AND id = ? AND version = ?').bind(JSON.stringify(r),a.project.id,r.id,old.version).run();
+  const statements=[db().prepare('UPDATE records SET data = ?, sheet_id = ?, version = version + 1 WHERE project_id = ? AND id = ? AND version = ?').bind(JSON.stringify(r),'sheetId'in r?r.sheetId:null,a.project.id,r.id,old.version)];
+  if(r.type==='task'&&prior.sheetId!==r.sheetId)statements.push(db().prepare("UPDATE records SET sheet_id=?,data=json_set(data,'$.sheetId',?),version=version+1 WHERE project_id=? AND type='comment' AND json_extract(data,'$.taskId')=? AND EXISTS(SELECT 1 FROM records WHERE project_id=? AND id=? AND version=?)").bind(r.sheetId,r.sheetId,a.project.id,r.id,a.project.id,r.id,old.version+1));
+  const [result]=await db().batch(statements);
   if(!result.meta.changes)fail('This item has changed. Refresh and try again.',409);
   r.version=old.version+1;
  }else{

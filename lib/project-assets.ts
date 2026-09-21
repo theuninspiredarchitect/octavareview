@@ -3,7 +3,8 @@ import type {ProjectAsset} from './review-types';
 
 export async function projectAssets(a:Access):Promise<ProjectAsset[]>{
  const records=await getRecords(a),assets=new Map<string,ProjectAsset>();
- for(const r of records)if(r.type==='comment')for(const file of r.attachments||[])assets.set(file.id,{...file,kind:file.mime.startsWith('image/')?'photo':'file',source:'task',author:r.author,authorRole:profession(r.authorRole),creatorId:r.creatorId||'',taskId:r.taskId,sheetId:r.sheetId,liked:false,likeCount:0});
+ for(const r of records)if(r.type==='task')for(const f of r.photos||[])assets.set(f.id,{...f,kind:'photo',author:r.author,authorRole:profession(r.authorRole),creatorId:r.creatorId||'',taskId:r.id,sheetId:r.sheetId||undefined,liked:false,likeCount:0});
+ for(const r of records)if(r.type==='comment')for(const file of r.attachments||[])assets.set(file.id,{...file,kind:file.mime.startsWith('image/')?'photo':'file',source:'task',author:r.author,authorRole:profession(r.authorRole),creatorId:r.creatorId||'',taskId:r.taskId,sheetId:r.sheetId||undefined,liked:false,likeCount:0});
  // A sheet-scoped review link never exposes the project's general documents.
  if(!a.shareId||a.shareScope==='project'){const rows=(await db().prepare('SELECT * FROM project_documents WHERE project_id=? ORDER BY created DESC').bind(a.project.id).all<any>()).results;
   for(const f of rows)assets.set(f.id,{id:f.id,name:f.name,mime:f.mime,size:f.size,created:f.created,kind:f.kind,source:'project',author:f.author,authorRole:profession(f.author_role),creatorId:f.creator,liked:false,likeCount:0});
