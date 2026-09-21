@@ -17,12 +17,16 @@ export type ReviewData={project:Project;records:RecordItem[];role:'owner'|'edito
 export const uid=()=>{if(typeof crypto.randomUUID==='function')return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};
 export const statusNames={open:'Open',progress:'In progress',done:'Resolved'};
 export const inkPalette=[
- {name:'Clay',color:'#B56A55'},
- {name:'Slate blue',color:'#57748D'},
- {name:'Sage',color:'#648071'},
- {name:'Dusty plum',color:'#88718A'},
- {name:'Antique brass',color:'#A17F45'},
- {name:'Graphite',color:'#3C4247'},
+ {name:'Pink',color:'#F59DFF',contrast:'#151515'},
+ {name:'Purple',color:'#694AFF',contrast:'#FFFFFF'},
+ {name:'Green',color:'#06DF74',contrast:'#151515'},
+ {name:'Orange',color:'#FF5F01',contrast:'#151515'},
+ {name:'Blue',color:'#2377FF',contrast:'#FFFFFF'},
+ {name:'Cyan',color:'#00C9EA',contrast:'#151515'},
+ {name:'Red',color:'#FF3B4F',contrast:'#151515'},
+ {name:'Yellow',color:'#FFD43B',contrast:'#151515'},
+ {name:'Black',color:'#151515',contrast:'#FFFFFF'},
+ {name:'White',color:'#FFFFFF',contrast:'#151515'},
 ] as const;
 export const colors:string[]=inkPalette.map(ink=>ink.color);
 export function sampleRecords():RecordItem[]{

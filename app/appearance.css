@@ -67,10 +67,14 @@
 @media(max-width:400px){.appearance-settings>div:first-child{align-items:flex-start;flex-direction:column;gap:3px}.appearance-options{gap:9px}}
 .person-account-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px}.person-account-actions button{font-size:12px;min-height:28px}.person-account-actions button:disabled{opacity:.45;cursor:not-allowed}.account-link-result{padding:14px;border:1px solid var(--border);background:var(--muted);border-radius:8px;min-width:0}.account-link-result>strong{font-size:14px}.account-link-result p{font-size:12px;line-height:1.6;color:var(--muted-foreground);margin:8px 0}.account-link-result>div{display:flex;gap:8px;min-width:0}.account-link-result input{min-width:0;flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:12px}.account-link-result .text-button{margin-top:10px}.account-link-recipient{display:grid;gap:5px}.account-link-recipient span{font-size:13px;color:var(--muted-foreground)}.people-dialog{max-height:90dvh;overflow-y:auto;overflow-x:hidden}
 
-/* A compact, muted ink palette with a theme-aware selection ring. */
-.brush-control .color-swatch{display:grid;place-items:center;box-shadow:inset 0 0 0 1px #ffffff14;transition:box-shadow .15s,transform .15s}
+/* Bright reference inks, compact swatches and a contrasting selection marker. */
+.brush-control{max-height:calc(100% - 110px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.brush-control::-webkit-scrollbar{display:none}
+.brush-control>*{flex-shrink:0}
+.brush-control .color-swatch{display:grid;place-items:center;box-shadow:inset 0 0 0 1px #80808055;transition:box-shadow .15s,transform .15s}
 .brush-control .color-swatch:hover{box-shadow:inset 0 0 0 1px #ffffff45;transform:scale(1.08)}
 .brush-control .color-swatch.active:after{inset:-3px;border-color:var(--foreground);opacity:.75}
-.brush-control .color-swatch>svg{width:9px;height:9px;stroke:#fff;stroke-width:2.5;pointer-events:none}
+.brush-control .color-swatch>svg{width:9px;height:9px;stroke:currentColor;stroke-width:2.5;pointer-events:none}
 .brush-control .color-swatch:focus-visible{outline:2px solid var(--foreground);outline-offset:4px}
 @media(min-width:761px) and (pointer:fine){.brush-control{width:48px}.brush-control .color-swatches{grid-template-columns:repeat(2,14px);gap:12px 8px}.brush-control .color-swatch{width:14px;height:14px}}
+@media(max-width:760px){.brush-control.mobile-open{width:44px}.brush-control.mobile-open .color-swatches{gap:10px 6px}}
