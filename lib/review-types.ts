@@ -16,7 +16,15 @@ export type Project={id:string;name:string;created:string;planCount?:number;task
 export type ReviewData={project:Project;records:RecordItem[];role:'owner'|'editor'|'client';profession?:Profession;userId?:string;name:string;guest?:boolean;projects:Project[];folders:PlanFolder[]};
 export const uid=()=>{if(typeof crypto.randomUUID==='function')return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};
 export const statusNames={open:'Open',progress:'In progress',done:'Resolved'};
-export const colors=['#e4683d','#3477bd','#199184','#9a6ed0','#d49a21','#303d46'];
+export const inkPalette=[
+ {name:'Clay',color:'#B56A55'},
+ {name:'Slate blue',color:'#57748D'},
+ {name:'Sage',color:'#648071'},
+ {name:'Dusty plum',color:'#88718A'},
+ {name:'Antique brass',color:'#A17F45'},
+ {name:'Graphite',color:'#3C4247'},
+] as const;
+export const colors:string[]=inkPalette.map(ink=>ink.color);
 export function sampleRecords():RecordItem[]{
 const created=new Date().toISOString();
 return [
