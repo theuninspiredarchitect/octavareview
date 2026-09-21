@@ -1,10 +1,11 @@
 "use client";
+import DocumentStudio from './document-studio';
 import {useEffect,useRef,useState} from 'react';
 import {Image as ImageIcon,LoaderCircle} from 'lucide-react';
 import type {ProjectAsset} from '@/lib/review-types';
 import {makeThumbnail} from '@/lib/upload-client';
 export const assetPath=(projectId:string,file:Pick<ProjectAsset,'id'|'source'>)=>'/api/'+(file.source==='task'?'attachments':'documents')+'?project='+encodeURIComponent(projectId)+'&id='+encodeURIComponent(file.id);
-export default function AssetPreview({file,projectId,headers,large=false,sourceUrl}:{file:Pick<ProjectAsset,'id'|'source'|'mime'|'name'|'size'>;projectId:string;headers:Record<string,string>;large?:boolean;sourceUrl?:string}){
+function ImageAssetPreview({file,projectId,headers,large=false,sourceUrl}:{file:Pick<ProjectAsset,'id'|'source'|'mime'|'name'|'size'>;projectId:string;headers:Record<string,string>;large?:boolean;sourceUrl?:string}){
  const [src,setSrc]=useState(''),[error,setError]=useState(false),[visible,setVisible]=useState(large),element=useRef<HTMLDivElement>(null),auth=useRef(headers);auth.current=headers;
  useEffect(()=>{if(large){setVisible(true);return}const observer=new IntersectionObserver(items=>{if(items.some(i=>i.isIntersecting)){setVisible(true);observer.disconnect()}},{rootMargin:'150px'});if(element.current)observer.observe(element.current);return()=>observer.disconnect()},[large,file.id]);
  useEffect(()=>{
@@ -24,4 +25,9 @@ export default function AssetPreview({file,projectId,headers,large=false,sourceU
   return()=>{live=false;controller.abort();if(url)URL.revokeObjectURL(url)};
  },[file.id,projectId,large,visible,sourceUrl]);
  return <div ref={element} className={'asset-preview-surface '+(large?'large':'')}>{error?<div className="asset-preview-placeholder"><ImageIcon size={26}/><span>Open to view or download</span></div>:!src?<div className="asset-preview-placeholder">{visible?<LoaderCircle className="spin" size={22}/>:<ImageIcon size={22}/>}</div>:file.mime.startsWith('image/')?<img src={src} alt={file.name} loading="lazy" onError={()=>setError(true)} className={large?'asset-image-large':'asset-image'}/>:<iframe title={file.name} src={src} className="asset-pdf-preview"/>}</div>
+}
+
+export default function AssetPreview(props:Parameters<typeof ImageAssetPreview>[0]){
+ if(props.file.mime==='application/pdf')return <div className={'asset-preview-surface '+(props.large?'large':'')}><DocumentStudio key={props.file.source+props.file.id} projectId={props.projectId} target={{source:props.file.source,targetId:props.file.id}} title={props.file.name} headers={props.headers}/></div>;
+ return <ImageAssetPreview {...props}/>;
 }

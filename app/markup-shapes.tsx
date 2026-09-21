@@ -3,7 +3,8 @@ import type React from 'react';
 import {Markup,Sheet} from '@/lib/review-types';
 import {areaPoints,labelPoint,measureText,textLayout,calloutPath} from '@/lib/drawing-geometry';
 export {measureText} from '@/lib/drawing-geometry';
-export function pathData(points:{x:number;y:number}[]){if(!points.length)return '';if(points.length===1)return 'M'+points[0].x+' '+points[0].y+'l.01 .01';let d='M'+points[0].x+' '+points[0].y;for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1];d+='Q'+p.x+' '+p.y+' '+(p.x+n.x)/2+' '+(p.y+n.y)/2}const p=points.at(-1)!;return d+'L'+p.x+' '+p.y}
+import {strokePath as pathData} from '@/lib/drawing-render';
+export {strokePath as pathData} from '@/lib/drawing-render';
 export default function MarkupShape({m,s,selected=false,onClick,scale=1}:{m:Markup;s:Sheet;selected?:boolean;scale?:number;onClick?:(e:React.PointerEvent)=>void}){
  const a=m.points[0],b=m.points.at(-1)!;if(!a)return null;
  if(m.kind==='photo')return <g data-markup-id={m.id}><PhotoPin point={a} scale={scale} selected={selected}/></g>;

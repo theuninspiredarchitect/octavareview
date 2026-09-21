@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {snapshotMeetingDrawings} from '@/lib/document-drawings-server';
 import {withSession} from '@/lib/supabase-server';
 import {access,db,error,fail,getRecords,json,origin,type Access} from '@/lib/server';
 import {projectAssets} from '@/lib/project-assets';
@@ -13,6 +14,8 @@ async function validate(a:Access,m:Meeting){
  const tasks=new Set((await getRecords(a)).filter(r=>r.type==='task').map(r=>r.id));
  const specs=new Set((await db().prepare('SELECT id FROM specifications WHERE project_id=?').bind(a.project.id).all<any>()).results.map(r=>r.id));
  for(const e of m.entries){
+  if(e.drawing){const d=e.drawing;if(d.source==='sketch'){if(d.targetId!==e.id||d.meetingId!==m.id)fail('Sketch must belong to this meeting entry.');}else if(assets.get(d.targetId)?.mime!=='application/pdf'||assets.get(d.targetId)?.source!==d.source)fail('Choose a PDF from this project.',404);}
+
   if(e.photoIds.some(id=>assets.get(id)?.kind!=='photo'))fail('A photo is not available in this project.',404);
   if(e.presentationId&&assets.get(e.presentationId)?.kind!=='presentation')fail('Choose a presentation from this project.',404);
   if(e.taskId&&!tasks.has(e.taskId))fail('A linked task was removed. Unlink it before saving.',409);
@@ -49,8 +52,8 @@ export const POST=withSession(async req=>{try{
   if(m.version!==b.version)conflict();await validate(a,m);
   const included=m.entries.filter(e=>e.include);if(!included.length)fail('Include at least one entry in the report.');
   const ids=new Set(included.map(e=>e.taskId));const tasks=(await getRecords(a)).filter((r):r is import('@/lib/review-types').Task=>r.type==='task'&&ids.has(r.id));
-  const photoIds=new Set([...included.flatMap(e=>e.photoIds),...tasks.flatMap(t=>(t.photos||[]).map(p=>p.id)),...included.map(e=>e.presentationId)]);
-  const report:MeetingReport={id:reportId,meetingId:m.id,revision:0,issued:now,issuedBy:a.name,projectName:a.project.name,meeting:{...m,entries:included},tasks,assets:(await projectAssets(a)).filter(f=>photoIds.has(f.id))};
+  const photoIds=new Set([...included.flatMap(e=>e.photoIds),...tasks.flatMap(t=>(t.photos||[]).map(p=>p.id)),...included.map(e=>e.presentationId),...included.map(e=>e.drawing?.targetId)]);
+  const report:MeetingReport={id:reportId,meetingId:m.id,revision:0,issued:now,issuedBy:a.name,projectName:a.project.name,meeting:{...m,entries:included},tasks,drawings:await snapshotMeetingDrawings(a,{...m,entries:included}),assets:(await projectAssets(a)).filter(f=>photoIds.has(f.id))};
   const r=await db().prepare('INSERT INTO meeting_reports(id,project_id,meeting_id,revision,data,created) SELECT ?,?,?,COALESCE((SELECT MAX(revision) FROM meeting_reports WHERE project_id=? AND meeting_id=?),0)+1,?,? WHERE EXISTS(SELECT 1 FROM meetings WHERE project_id=? AND id=? AND version=?) RETURNING revision').bind(reportId,a.project.id,id,a.project.id,id,JSON.stringify(report),now,a.project.id,id,m.version).first<any>();
   if(!r)conflict();return json({report:{...report,revision:r.revision}},201);
  }

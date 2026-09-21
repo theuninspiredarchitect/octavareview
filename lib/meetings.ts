@@ -1,8 +1,10 @@
 import {z} from 'zod';
+import {drawingTargetSchema,type DrawingSnapshot} from './document-drawings';
 import {uid,type ProjectAsset,type Task} from './review-types';
 const id=z.string().min(1).max(100);
 export const meetingKinds={site:'Site visit',selection:'Material selections',review:'Design review'} as const;
 export const meetingEntrySchema=z.object({
+ drawing:drawingTargetSchema.nullable().default(null),
  id,kind:z.enum(['observation','task','selection','note','decision']),title:z.string().max(200),text:z.string().max(10000),
  location:z.string().max(200).default(''),photoIds:z.array(id).max(8).default([]),include:z.boolean().default(true),
  taskId:id.nullable().default(null),specificationId:id.nullable().default(null),
@@ -18,5 +20,5 @@ export const meetingSchema=z.object({id,kind:z.enum(['site','selection','review'
 });
 export type MeetingEntry=z.infer<typeof meetingEntrySchema>;
 export type Meeting=z.infer<typeof meetingSchema>;
-export type MeetingReport={id:string;meetingId:string;revision:number;issued:string;issuedBy:string;projectName:string;meeting:Meeting;tasks:Task[];assets:ProjectAsset[]};
+export type MeetingReport={id:string;meetingId:string;revision:number;issued:string;issuedBy:string;projectName:string;meeting:Meeting;tasks:Task[];assets:ProjectAsset[];drawings?:DrawingSnapshot[]};
 export const blankEntry=(kind:MeetingEntry['kind']):MeetingEntry=>meetingEntrySchema.parse({id:uid(),kind,title:'',text:''});
