@@ -15,8 +15,7 @@
 
 .task-card h3,.status-tag,.sheet-caption strong,.sheet-card p,.review-tabs [data-slot=tabs-trigger],.review-filters .choice,.review-actions>.choice,.form-stack label,.field-label{font-size:14px!important}.task-card>p{font-size:13px}.form-stack input,.form-stack textarea,.comment-form textarea{font-size:16px!important}.task-card-top{flex-wrap:wrap}.status-tag{line-height:22px}.task-card h3{line-height:1.5}.canvas-context{height:39px}.review-panel .client-review-card p{font-size:12px}.canvas-bottom>span{max-width:210px;line-height:1.5}
 
-/* Minimal dark editing workspace */
-:root,.dark{--background:#282828;--foreground:#e5e5e5;--card:#2b2b2b;--card-foreground:#e5e5e5;--popover:#303030;--popover-foreground:#ececec;--primary:#6b9dff;--primary-foreground:#fff;--secondary:#343434;--secondary-foreground:#ddd;--muted:#373737;--muted-foreground:#a5a5a5;--accent:#3b3b3b;--accent-foreground:#fff;--destructive:#eb7b71;--border:#454545;--input:#494949;--ring:#6b9dff;--sidebar:#242424;--sidebar-foreground:#aaa;--sidebar-primary:#8db7ff;--sidebar-primary-foreground:#fff;--sidebar-accent:#393939;--sidebar-accent-foreground:#fff;--sidebar-border:#171717;--sidebar-ring:#6b9dff;--radius:.25rem;color-scheme:dark}
+/* Minimal editing workspace */
 body{background:var(--ui-canvas,#1b1b1b);color:var(--ui-ink,#ddd);font-family:Arial,Helvetica,sans-serif}
 button:focus-visible,a:focus-visible{outline-color:var(--ui-focus-border,#94b7ff)}
 .app-rail{width:44px!important;flex-basis:44px;background:var(--ui-recessed,#232323)!important;padding:14px 0 13px;border-right:1px solid var(--ui-border,#151515)}
