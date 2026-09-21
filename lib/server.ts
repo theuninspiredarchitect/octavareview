@@ -28,6 +28,7 @@ export async function claimGuestWorkspace(req:Request,userId:string,verifiedEmai
   db().prepare('UPDATE records SET creator = ? WHERE creator = ?').bind(userId,owner),
   db().prepare('UPDATE attachments SET creator = ? WHERE creator = ?').bind(userId,owner),
   db().prepare('UPDATE project_documents SET creator = ? WHERE creator = ?').bind(userId,owner),
+  db().prepare('UPDATE specifications SET creator = ? WHERE creator = ?').bind(userId,owner),
   db().prepare('INSERT OR IGNORE INTO photo_likes(project_id,photo_id,user_id,created) SELECT project_id,photo_id,?,created FROM photo_likes WHERE user_id=?').bind(userId,owner),
   db().prepare('DELETE FROM photo_likes WHERE user_id=?').bind(owner),
   db().prepare('DELETE FROM guest_sessions WHERE owner_id = ?').bind(owner),

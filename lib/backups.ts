@@ -1,5 +1,5 @@
 import {bucket,db,fail,type Access} from './server';
-export const backupTables=['records','files','attachments','plan_folders','project_documents','photo_groups','photo_group_items','photo_likes','project_members'] as const;
+export const backupTables=['records','files','attachments','plan_folders','project_documents','photo_groups','photo_group_items','photo_likes','project_members','specification_groups','specifications'] as const;
 export type BackupManifest={format:'octava-review-backup';version:1;created:string;project:any;tables:Record<string,any[]>;objects:{key:string;backupKey:string;archivePath:string}[]};
 export async function backupRow(a:Access,id:string){
  if(a.role!=='owner'||a.shareId)fail('Only the project administrator can manage backups.',403);
@@ -40,7 +40,7 @@ export async function startRestore(a:Access,id:string){
  const backup=await backupRow(a,id);if(backup.status!=='ready')fail('Finish the backup first.');const m=await manifestFor(backup);
  const existing=await db().prepare("SELECT * FROM restores WHERE backup_id=? AND creator=? AND status='copying' ORDER BY created DESC LIMIT 1").bind(id,a.user).first<any>();if(existing)return {id:existing.id,cursor:existing.cursor,total:m.objects.length,status:existing.status};
  const restoreId=crypto.randomUUID(),projectId=crypto.randomUUID(),map:Record<string,string>={[m.project.id]:projectId};
- for(const table of ['records','files','attachments','plan_folders','project_documents','photo_groups'])for(const row of m.tables[table])if(!map[row.id])map[row.id]=crypto.randomUUID();
+ for(const table of ['records','files','attachments','plan_folders','project_documents','photo_groups','specification_groups','specifications'])for(const row of m.tables[table]||[])if(!map[row.id])map[row.id]=crypto.randomUUID();
  await db().prepare('INSERT INTO restores(id,backup_id,project_id,creator,mapping,cursor,status,created) VALUES(?,?,?,?,?,0,?,?)').bind(restoreId,id,projectId,a.user,JSON.stringify(map),'copying',new Date().toISOString()).run();return {id:restoreId,cursor:0,total:m.objects.length,status:'copying'};
 }
 export async function stepRestore(a:Access,id:string){
@@ -53,9 +53,9 @@ export async function stepRestore(a:Access,id:string){
  const project={...manifest.project,id:row.project_id,owner:a.user,name:manifest.project.name+' · Restored '+new Date().toISOString().slice(0,10),created:new Date().toISOString()};
  const statements=[db().prepare('INSERT OR IGNORE INTO projects(id,owner,owner_profession,name,created,next_task) VALUES(?,?,?,?,?,?)').bind(project.id,project.owner,project.owner_profession,project.name,project.created,project.next_task)];
  // Access grants and review tokens are deliberately not reactivated in a restored copy.
- const allowed:Record<string,string[]>={records:['id','project_id','type','sheet_id','data','creator','version','created'],files:['id','project_id','name','page_count','created'],attachments:['id','project_id','task_id','name','mime','size','creator','created'],plan_folders:['id','project_id','name','version','created'],project_documents:['id','project_id','kind','name','mime','size','creator','author','author_role','created'],photo_groups:['id','project_id','name','created'],photo_group_items:['project_id','photo_id','group_id'],photo_likes:['project_id','photo_id','user_id','created']};
- for(const [table,columns]of Object.entries(allowed))for(const original of manifest.tables[table]){
-  const value=rewrite(original,map);if(table==='records')value.data=JSON.stringify(rewrite(JSON.parse(original.data),map));
+ const allowed:Record<string,string[]>={records:['id','project_id','type','sheet_id','data','creator','version','created'],files:['id','project_id','name','page_count','created'],attachments:['id','project_id','task_id','name','mime','size','creator','created'],plan_folders:['id','project_id','name','version','created'],project_documents:['id','project_id','kind','name','mime','size','creator','author','author_role','created'],photo_groups:['id','project_id','name','created'],photo_group_items:['project_id','photo_id','group_id'],photo_likes:['project_id','photo_id','user_id','created'],specification_groups:['id','project_id','name','version','created'],specifications:['id','project_id','data','creator','version','created','updated']};
+ for(const [table,columns]of Object.entries(allowed))for(const original of manifest.tables[table]||[]){
+  const value=rewrite(original,map);if(table==='records'||table==='specifications')value.data=JSON.stringify(rewrite(JSON.parse(original.data),map));
   statements.push(db().prepare('INSERT OR IGNORE INTO '+table+'('+columns.join(',')+') VALUES('+columns.map(()=>'?').join(',')+')').bind(...columns.map(c=>value[c]??null)));
  }
  statements.push(db().prepare("UPDATE restores SET status='ready',cursor=? WHERE id=?").bind(cursor,id));

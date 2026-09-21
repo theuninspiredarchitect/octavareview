@@ -4,7 +4,7 @@ The dedicated Octava Review Supabase project and runtime URL/publishable key are
 
 ## Service boundaries
 
-Supabase handles account credentials, email verification, sessions and password reset. Existing D1 projects, membership and drawing records stay in D1; PDFs and attachments stay in R2. No public Supabase tables, storage buckets, service-role keys or Postgres migrations are needed for this integration.
+Supabase handles account credentials, email verification, sessions and password reset. Existing D1 projects, membership and drawing records stay in D1; PDFs and attachments stay in R2. No public Supabase tables, storage buckets or Postgres migrations are needed. Admin-generated account links require a separate server-only secret key; the browser/session client continues using the publishable key.
 
 ## Activate accounts
 
@@ -21,6 +21,18 @@ Supabase handles account credentials, email verification, sessions and password 
 The server uses PKCE for email links. A verification or recovery link must be completed in the browser that started the flow. The callback exchanges the one-time code and returns refreshed HttpOnly cookies; tokens are never put in browser localStorage. The account UI explains this requirement. With embedded views, complete account registration in the standalone app tab so the confirmation link returns to the same cookie context.
 
 For local development, copy `.env.example` to the ignored `.dev.vars` used by the Cloudflare development server, fill it with a separate test project's values, and add your local callback URLs to that test project's redirect allowlist. Do not commit real values or broaden the production redirect allowlist to arbitrary hosts.
+
+## Admin-generated invitation and reset links
+
+The implementation is included but remains disabled until the privileged server connection is approved and configured. No production secret key or first administrator account was created in this release.
+
+After approval, create a dedicated Supabase secret API key for this application's backend. Store it only as the Site runtime secret `SUPABASE_SECRET_KEY`; never put it in source, client code, browser storage, or a `NEXT_PUBLIC_` variable. Configure `ACCOUNT_ADMIN_EMAILS` with explicitly authorized administrators' verified email addresses. Do not infer account-administrator privileges from project ownership or a user-editable role tag. A valid account administrator must also own the project whose member they manage.
+
+Project people provides **Invite link** and **Reset password** for each member. The administrator copies and privately sends the resulting URL; generating a link sends no email. The link opens a password-choice form on any device. Only submitting that form verifies the Supabase invitation/recovery token, saves the recipient's password, establishes HttpOnly cookies and opens their project. Ordinary project links still require sign-in.
+
+Links expire after 30 minutes, work once, and are invalidated by regeneration, revocation or removal/change of the member's email. Link previews do not consume them. The URL contains an opaque fragment token; only its hash is stored. Supabase verification credentials stay server-side and are excluded from project backups. Invite generation for an already registered email returns a regular sign-in link; the separate reset action is explicit. Password changes happen only when the recipient redeems the reset link.
+
+`scripts/verify-account-links.mjs` tests this contract against an isolated Auth stub, including unauthorized owners, client permissions, new-device acceptance, replay, expiry and revocation. A real invitation and recovery must be verified after server-key activation. Copyable links do not require SMTP; self-service email registration/recovery still require the email configuration below.
 
 ## People and visibility
 

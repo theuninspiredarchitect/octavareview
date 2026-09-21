@@ -72,3 +72,12 @@ The current production deployment uses Sites with Cloudflare Workers, D1 and R2.
 ## Verification
 
 After `pnpm build`, run `node scripts/verify-review.mjs` and `node scripts/verify-auth.mjs`. They use isolated in-memory Worker storage. Review checks cover drawing persistence, project isolation, role tags, folders, revision grouping, atomic PDF imports, chat/project media, per-person likes and conflicts. Auth checks use a mocked Auth service to verify the session contract, workspace/media/like transfer and email-readiness gate without creating real users or sending email. Run `node --experimental-strip-types scripts/verify-sync.mjs` and `node --experimental-strip-types scripts/verify-callouts.mjs` for merge-race and callout geometry checks. Production email confirmation and recovery must also be verified after Supabase configuration; the first administrator account and production email setup remain pending.
+
+
+## Specification schedule and appearance
+
+Specifications supports named sidebar groups, individual products or supplier packages, product/reference photos, multiple supplier quotes with revisions, one chosen quote, procurement progress and a payment ledger. Payments can be voided without erasing history. Contractor/reference prices are kept outside direct-purchase totals. Linked entries share a package quote so its cost is counted once. Currency totals stay separate. Open schedules refresh from cloud storage every five seconds and reject stale writes. Existing specification PDFs remain in the documents section; project backups restore entries and their quote, payment, group and file references.
+
+Account settings → Appearance offers the original dark theme and a warm light theme. The choice is stored on that device and works without sign-in.
+
+After building, `node scripts/verify-review.mjs` also verifies specification permissions, history, exact money totals, package links and backup compatibility. `node scripts/verify-account-links.mjs` verifies the pending admin account-link integration without sending email or changing real accounts.
