@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {authClient,authConfigured,authEmailReady,withSession} from '@/lib/supabase-server';
+import {accountAdminAllowed} from '@/lib/account-admin';
 import {claimGuestWorkspace,error,identity,json,origin} from '@/lib/server';
 export const GET=withSession(async(req)=>{try{const u=await identity(req);return json({configured:authConfigured(),emailReady:authEmailReady(),user:u.account?{id:u.id,email:u.email,name:u.name,profession:u.profession}:null})}catch(e){return error(e)}});
 export const POST=withSession(async(req)=>{try{
@@ -7,6 +8,17 @@ export const POST=withSession(async(req)=>{try{
  if(['signup','reset'].includes(b.action)&&!authEmailReady())return json({error:'Account emails are still being configured. Existing accounts can sign in; review links work without an account.'},503);
  const email=()=>z.string().trim().email().max(254).parse(b.email).toLowerCase();
  const password=()=>z.string().min(8,'Use at least 8 characters.').max(128).parse(b.password);
+ if(b.action==='activateAdmin'){
+  const nextPassword=password(),tokenHash=z.string().regex(/^[A-Za-z0-9_-]{32,256}$/).parse(b.token);
+  // The private, single-use Supabase invitation proves ownership of the administrator email.
+  const {data,error:verifyError}=await client.auth.verifyOtp({token_hash:tokenHash,type:'invite'});
+  if(verifyError||!data.user?.email_confirmed_at||!data.user.email){await client.auth.signOut({scope:'local'});return json({error:'This setup link has expired or was already used. Ask for a new administrator setup link.'},410)}
+  if(!accountAdminAllowed({email:data.user.email,guest:false})){await client.auth.signOut({scope:'local'});return json({error:'This setup link is not for the workspace administrator.'},403)}
+  const {error:updateError}=await client.auth.updateUser({password:nextPassword});
+  if(updateError){await client.auth.signOut({scope:'local'});return json({error:'The password could not be saved. '+updateError.message+' Request a new setup link.'},400)}
+  await claimGuestWorkspace(req,'supabase:'+data.user.id,data.user.email);
+  return json({ok:true});
+ }
  if(b.action==='signin'){
   const {data,error:e}=await client.auth.signInWithPassword({email:email(),password:password()});if(e)throw Object.assign(new Error(e.message),{status:400});
   if(data.user)await claimGuestWorkspace(req,'supabase:'+data.user.id,data.user.email_confirmed_at?data.user.email||'':'');return json({ok:true});
