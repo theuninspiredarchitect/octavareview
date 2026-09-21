@@ -28,6 +28,26 @@ export async function verifyPortal({mf,database,call,owner,other,p,png,singleByt
  const shared={'x-review-token':share.token};const all=(await call('/api/documents?project='+p.id,null,shared));assert(all.assets.some(f=>f.id===deck.asset.id));assert(all.assets.some(f=>f.groupId===group.id));assert.equal(all.canOrganize,false);
  const limited=await call('/api/shares',{projectId:p.id,role:'client',label:'One sheet',sheetIds:['sample-ground']});assert(!(await call('/api/documents?project='+p.id,null,{'x-review-token':limited.token})).assets.some(f=>f.id===deck.asset.id));
  assert.equal((await mf.dispatchFetch('https://review.test/api/thumbnails?project='+p.id+'&id='+projectPhoto.asset.id,{headers:{'x-review-token':limited.token}})).status,404);
+ // Photo pins grant only the selected photo to viewers of that particular drawing.
+ const pin={id:crypto.randomUUID(),type:'markup',sheetId:'sample-ground',kind:'photo',photoId:projectPhoto.asset.id,points:[{x:240,y:180}],color:'#416dc2',width:2,visibility:'client',author:'QA',created:new Date().toISOString()};
+ const pinned=await call('/api/review',{action:'save',projectId:p.id,record:pin});assert.equal(pinned.status,200,JSON.stringify(pinned));assert.equal(pinned.record.photoId,projectPhoto.asset.id);
+ const pinUrl='/api/photo-links?project='+p.id+'&pin='+pin.id;
+ const limitedHeaders={'x-review-token':limited.token};assert.equal((await call(pinUrl+'&metadata=1',null,limitedHeaders)).file.id,projectPhoto.asset.id);
+ assert.equal((await mf.dispatchFetch('https://review.test'+pinUrl,{headers:limitedHeaders})).status,200);
+ assert.equal((await mf.dispatchFetch('https://review.test'+pinUrl+'&thumbnail=1',{headers:limitedHeaders})).status,200);
+ assert.equal((await mf.dispatchFetch('https://review.test/api/documents?project='+p.id+'&id='+projectPhoto.asset.id,{headers:limitedHeaders})).status,404);
+ const wrongSheet=await call('/api/shares',{projectId:p.id,role:'client',label:'Another sheet',sheetIds:['sample-roof']});assert.equal((await call(pinUrl+'&metadata=1',null,{'x-review-token':wrongSheet.token})).status,404);
+ assert.equal((await call(pinUrl+'&metadata=1',null,{})).status,401);
+ assert.equal((await call('/api/review',{action:'save',projectId:p.id,record:{...pin,id:crypto.randomUUID(),photoId:deck.asset.id}})).status,404);
+ assert.equal((await call('/api/review',{action:'save',projectId:p.id,record:{...pin,id:crypto.randomUUID(),photoId:'not-in-project'}})).status,404);
+ assert.equal((await call('/api/review',{action:'save',projectId:p.id,record:{...pin,id:crypto.randomUUID(),photoId:undefined}})).status,400);
+ const attachmentPin=await call('/api/review',{action:'save',projectId:p.id,record:{...pin,id:crypto.randomUUID(),sheetId:'sample-roof',photoId:photo.attachment.id}});assert.equal(attachmentPin.status,200);
+ assert.equal((await mf.dispatchFetch('https://review.test/api/photo-links?project='+p.id+'&pin='+attachmentPin.record.id,{headers:{'x-review-token':wrongSheet.token}})).status,200);
+ // Editors can move pins; clients cannot alter another person's pin.
+ const moved=await call('/api/review',{action:'save',projectId:p.id,record:{...pinned.record,points:[{x:400,y:270}]}});assert.equal(moved.status,200);assert.deepEqual(moved.record.points,[{x:400,y:270}]);
+ assert.equal((await call('/api/review',{action:'save',projectId:p.id,record:moved.record},limitedHeaders)).status,403);
+ const temporary=await call('/api/review',{action:'save',projectId:p.id,record:{...pin,id:crypto.randomUUID()}});assert.equal((await call('/api/review',{projectId:p.id,id:temporary.record.id,version:temporary.record.version},owner,'DELETE')).status,200);
+ assert.equal((await call('/api/photo-links?project='+p.id+'&pin='+temporary.record.id+'&metadata=1',null,limitedHeaders)).status,404);
  assert.equal((await call('/api/backups?project='+p.id,null,shared)).status,403);
  assert.equal((await call('/api/backups',{projectId:p.id,action:'create'},other)).status,403);
  const before=(await call('/api/review?project='+p.id)).records;let backup=await call('/api/backups',{projectId:p.id,action:'create'});assert.equal(backup.status,'copying');
@@ -40,10 +60,11 @@ export async function verifyPortal({mf,database,call,owner,other,p,png,singleByt
  const tasks=new Set(restored.records.filter(r=>r.type==='task').map(r=>r.id));assert(restored.records.filter(r=>r.type==='comment').every(r=>tasks.has(r.taskId)));assert(restored.records.every(r=>r.type==='sheet'||restored.records.some(s=>s.type==='sheet'&&s.id===r.sheetId)));
  assert.equal((await call('/api/review?project='+restore.projectId,null,other)).status,403);
  const restoredAssets=await call('/api/documents?project='+restore.projectId);assert(restoredAssets.assets.some(f=>f.name==='Concept presentation.pdf'));assert(restoredAssets.assets.some(f=>f.kind==='photo'&&f.groupId));
+ const restoredPins=restored.records.filter(r=>r.type==='markup'&&r.kind==='photo');assert.equal(restoredPins.length,2);assert(restoredPins.every(r=>restoredAssets.assets.some(f=>f.id===r.photoId)));for(const pin of restoredPins)assert.equal((await call('/api/photo-links?project='+restore.projectId+'&pin='+pin.id+'&metadata=1')).status,200);
  const restoredDeck=restoredAssets.assets.find(f=>f.name==='Concept presentation.pdf');assert.equal((await mf.dispatchFetch('https://review.test/api/documents?project='+restore.projectId+'&id='+restoredDeck.id,{headers:owner})).status,200);
  const archive=await mf.dispatchFetch('https://review.test/api/backups?project='+p.id+'&id='+backupId,{headers:owner});assert.equal(archive.status,200);const tar=new Uint8Array(await archive.arrayBuffer());let offset=0,entries=[];
  while(offset+512<=tar.length&&tar[offset]){const name=new TextDecoder().decode(tar.slice(offset,offset+100)).split('\0')[0],size=parseInt(new TextDecoder().decode(tar.slice(offset+124,offset+136)),8);entries.push(name);if(name==='manifest.json')assert.equal(JSON.parse(new TextDecoder().decode(tar.slice(offset+512,offset+512+size))).tables.records.length,before.length);offset+=512+Math.ceil(size/512)*512}assert.equal(entries.length,manifest.objects.length+1);
  assert.equal((await call('/api/photo-groups',{projectId:p.id,action:'remove',id:group.id})).status,200);assert((await call('/api/documents?project='+p.id)).assets.some(f=>f.id===projectPhoto.asset.id&&!f.groupId));
  await call('/api/shares',{projectId:p.id,action:'revoke',id:share.id});assert.equal((await call('/api/documents?project='+p.id,null,shared)).status,403);
- console.log('PASS: photo groups, presentation defaults/renames, scoped sharing and revocation, 41 MB chunk upload, plan/attachment uploads, thumbnail access, complete backup byte hashes, tar export, isolated restore of files/markups/tasks/comments/folders/likes.');
+ console.log('PASS: photo pins, linked-photo access isolation, backup/restore of photo links, photo groups, presentation defaults/renames, scoped sharing and revocation, 41 MB chunk upload, plan/attachment uploads, thumbnail access, complete backup byte hashes, tar export, isolated restore of files/markups/tasks/comments/folders/likes.');
 }

@@ -30,7 +30,8 @@ export function calloutPath(box:ReturnType<typeof textLayout>){
 }
 function polyline(m:Markup):Point[]{const a=m.points[0],b=m.points.at(-1)!;if(m.kind==='area')return areaPoints(m.points);if(m.kind==='rect')return[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}];if(m.kind==='ellipse'){const cx=(a.x+b.x)/2,cy=(a.y+b.y)/2,rx=Math.abs(a.x-b.x)/2,ry=Math.abs(a.y-b.y)/2;return Array.from({length:65},(_,i)=>({x:cx+rx*Math.cos(i*Math.PI/32),y:cy+ry*Math.sin(i*Math.PI/32)}))}if(m.kind==='pen'&&m.points.length>2){const out=[a];let from=a;for(let i=1;i<m.points.length-1;i++){const p=m.points[i],n=m.points[i+1],end={x:(p.x+n.x)/2,y:(p.y+n.y)/2};for(let j=1;j<=4;j++){const t=j/4,u=1-t;out.push({x:u*u*from.x+2*u*t*p.x+t*t*end.x,y:u*u*from.y+2*u*t*p.y+t*t*end.y})}from=end}out.push(b);return out}return m.points}
 function boxHit(a:Point,b:Point,r:number,x:number,y:number,w:number,h:number){const ps=[{x:x-r,y:y-r},{x:x+w+r,y:y-r},{x:x+w+r,y:y+h+r},{x:x-r,y:y+h+r}];return inPolygon(a,ps)||inPolygon(b,ps)||ps.some((p,i)=>intersects(a,b,p,ps[(i+1)%4]))}
-export function hitMarkup(m:Markup,s:Sheet,from:Point,to:Point,radius:number){const a=m.points[0];if(!a)return false;const r=radius+m.width/2;
+export function hitMarkup(m:Markup,s:Sheet,from:Point,to:Point,radius:number,scale=1){const a=m.points[0];if(!a)return false;const r=radius+m.width/2;
+ if(m.kind==='photo')return boxHit(from,to,radius,a.x-19/scale,a.y-42/scale,38/scale,44/scale);
  if(m.kind==='text'){const box=textLayout(m,s);return boxHit(from,to,r,box.x,box.y,box.width,box.height)||(box.callout&&segmentGap(from,to,a,{x:Math.max(box.x,Math.min(box.x+box.width,a.x)),y:box.above?box.y+box.height:box.y})<=r+7)}
  const ps=polyline(m),closed=['rect','area','ellipse'].includes(m.kind);
  if(m.kind==='area'&&(inPolygon(from,ps)||inPolygon(to,ps)))return true;
