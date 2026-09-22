@@ -2,6 +2,7 @@
 import React,{useRef,useState,useEffect,forwardRef,useImperativeHandle} from 'react';
 import {Sheet,Markup,Task,Point,uid} from '@/lib/review-types';
 import {areaPoints,constrain,distance,hitMarkup,measureText,polygonCrosses,validArea,textLayout} from '@/lib/drawing-geometry';
+import {canvasOffset,canvasPoint,zoomCanvasAt,wheelCanvasView,type CanvasView} from '@/lib/canvas-navigation';
 import {openPdf} from '@/lib/pdf';
 import SamplePlan from './sample-plan';
 import PhotoPin from './photo-pin';
@@ -15,12 +16,15 @@ function Pin({point,scale=1,draft=false,number,status}:{point:Point;scale?:numbe
 const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,ref){
  const {sheet,markups,tasks,tool,color,stroke,precision,visibility,name,hideMarks}=props;
  const container=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pdfCanvas=useRef<HTMLCanvasElement>(null),loupeCanvas=useRef<HTMLCanvasElement>(null);
- const [bounds,setBounds]=useState({w:900,h:700}),[zoom,setZoom]=useState(1),[pan,setPan]=useState<Point>({x:0,y:0}),[draft,setDraft]=useState<Markup|null>(null),[chain,setChain]=useState<Point[]>([]),[loading,setLoading]=useState(false),[pdfError,setPdfError]=useState(''),[space,setSpace]=useState(false),[axis,setAxis]=useState(false),[snap,setSnap]=useState(true),[snapped,setSnapped]=useState(false),[cursor,setCursor]=useState<Point|null>(null),[active,setActive]=useState(false),[activeVertex,setActiveVertex]=useState<number|null>(null),[pdfRevision,setPdfRevision]=useState(0),[eraseTick,setEraseTick]=useState(0);
+ const [bounds,setBounds]=useState({w:900,h:700}),[view,setViewState]=useState<CanvasView>({zoom:1,pan:{x:0,y:0}}),[draft,setDraft]=useState<Markup|null>(null),[chain,setChain]=useState<Point[]>([]),[loading,setLoading]=useState(false),[pdfError,setPdfError]=useState(''),[space,setSpace]=useState(false),[axis,setAxis]=useState(false),[snap,setSnap]=useState(true),[snapped,setSnapped]=useState(false),[cursor,setCursor]=useState<Point|null>(null),[active,setActive]=useState(false),[activeVertex,setActiveVertex]=useState<number|null>(null),[pdfRevision,setPdfRevision]=useState(0),[eraseTick,setEraseTick]=useState(0);
+ const viewRef=useRef(view),{zoom,pan}=view;
+ // Update synchronously so rapid trackpad events cannot overwrite one another.
+ function setView(next:CanvasView){viewRef.current=next;setViewState(next)}
  const [textDraft,setTextDraft]=useState<{point:Point;value:string;original?:Markup}|null>(null),textRef=useRef<typeof textDraft>(null);textRef.current=textDraft;
  useEffect(()=>()=>props.onTextEditing?.(false),[]);
  const draftRef=useRef<Markup|null>(null),chainRef=useRef<Point[]>([]),gesture=useRef<Gesture|null>(null),touches=useRef(new Map<number,Point>()),penActive=useRef(false),pinch=useRef<{distance:number;zoom:number;anchor:Point}|null>(null),erasing=useRef(new Map<string,Markup>()),pendingErase=useRef(new Set<string>()),eraseLast=useRef<Point|null>(null),lastTap=useRef(0);
  const fit=Math.max(.005,Math.min((bounds.w-(bounds.w<560?125:190))/sheet.width,(bounds.h-125)/sheet.height)),scale=fit*zoom;
- const baseOffset={x:(bounds.w-sheet.width*scale)/2+30,y:(bounds.h-sheet.height*scale)/2+12},offset={x:baseOffset.x+pan.x,y:baseOffset.y+pan.y};
+ const geometry={bounds,sheet,fit},offset=canvasOffset(view,geometry);
  const selectedMark=markups.find(m=>m.id===props.selected),editable=selectedMark&&selectedMark.editable!==false&&['measure','area'].includes(selectedMark.kind);
  const precisionTool=['measure','area','calibrate','pin','photo'].includes(tool),clamp=(p:Point)=>({x:Math.max(0,Math.min(sheet.width,p.x)),y:Math.max(0,Math.min(sheet.height,p.y))}),inside=(p:Point)=>p.x>=0&&p.y>=0&&p.x<=sheet.width&&p.y<=sheet.height;
  function editText(point:Point,original?:Markup){const value={point,value:original?.text||'',original};textRef.current=value;setTextDraft(value);props.onSelect(original?.id||null);if(original)props.onTextSize(original.textSize||Math.max(14,original.width*5));props.onTextEditing?.(true)}
@@ -40,17 +44,54 @@ const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,
  return()=>{cancelled=true;clearTimeout(timer);render?.cancel();if(!props.pdfDocument)doc?.destroy()};},[sheet.id,props.fileUrl,renderScale,props.pdfDocument]);
  const loupePoint=cursor&&(active||chain.length>0)&&!space&&(precisionTool||gesture.current?.kind==='edit')?cursor:null,loupeRadius=64/(scale*2.5);
  useEffect(()=>{const target=loupeCanvas.current,src=pdfCanvas.current;if(!target||!src||!loupePoint||!sheet.fileId)return;const ctx=target.getContext('2d')!;ctx.fillStyle='white';ctx.fillRect(0,0,256,256);ctx.drawImage(src,(loupePoint.x-loupeRadius)*src.width/sheet.width,(loupePoint.y-loupeRadius)*src.height/sheet.height,2*loupeRadius*src.width/sheet.width,2*loupeRadius*src.height/sheet.height,0,0,256,256)},[loupePoint?.x,loupePoint?.y,loupeRadius,pdfRevision]);
- function zoomAt(next:number,screen?:Point){const z=Math.min(24,Math.max(.25,next)),center=screen||{x:bounds.w/2,y:bounds.h/2},p={x:(center.x-offset.x)/scale,y:(center.y-offset.y)/scale},ns=fit*z;setZoom(z);setPan({x:center.x-p.x*ns-(bounds.w-sheet.width*ns)/2-30,y:center.y-p.y*ns-(bounds.h-sheet.height*ns)/2-12})}
- const fitView=()=>{setZoom(1);setPan({x:0,y:0})};
- useEffect(()=>{const el=container.current;if(!el)return;const wheel=(e:WheelEvent)=>{if((e.target as Element).closest('[data-ui]'))return;e.preventDefault();const r=el.getBoundingClientRect();zoomAt(zoom*Math.exp(-e.deltaY*.0015),{x:e.clientX-r.left,y:e.clientY-r.top})};el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel)},[zoom,pan,scale,bounds]);
- useImperativeHandle(ref,()=>({fit:fitView,zoom:(f)=>zoomAt(zoom*f),cancelDraft,exportImage:async()=>{
+ function zoomAt(next:number,screen?:Point){setView(zoomCanvasAt(viewRef.current,geometry,next,screen||{x:bounds.w/2,y:bounds.h/2}))}
+ const fitView=()=>setView({zoom:1,pan:{x:0,y:0}});
+ function navigateWheel(e:WheelEvent){
+  const r=container.current!.getBoundingClientRect(),screen={x:e.clientX-r.left,y:e.clientY-r.top};
+  const next=wheelCanvasView(viewRef.current,geometry,e,screen);
+  setView(next);setCursor(canvasPoint(next,geometry,screen));setSnapped(false);
+ }
+ const navigation=useRef({navigateWheel,zoomAt});navigation.current={navigateWheel,zoomAt};
+ useEffect(()=>{
+  const el=container.current;if(!el)return;
+  let nativePinch:{zoom:number;screen:Point}|null=null;
+  const overControl=(e:Event)=>e.target instanceof Element&&!!e.target.closest('[data-ui],button,input,textarea,select,[role="slider"]');
+  const wheel=(e:WheelEvent)=>{
+   if(overControl(e))return;
+   e.preventDefault();
+   if(nativePinch||gesture.current||touches.current.size)return;
+   navigation.current.navigateWheel(e);
+  };
+  // Safari exposes trackpad pinches separately; touchscreen pinches stay with
+  // the existing pointer handlers, avoiding duplicate navigation on iPad.
+  const gestureStart=(e:Event)=>{
+   if(overControl(e))return;e.preventDefault();
+   if(gesture.current||touches.current.size)return;
+   const event=e as Event&{clientX?:number;clientY?:number},r=el.getBoundingClientRect();
+   nativePinch={zoom:viewRef.current.zoom,screen:{x:(event.clientX??r.left+r.width/2)-r.left,y:(event.clientY??r.top+r.height/2)-r.top}};
+  };
+  const gestureChange=(e:Event)=>{
+   if(!nativePinch)return;e.preventDefault();
+   const scale=(e as Event&{scale:number}).scale;
+   if(Number.isFinite(scale)&&scale>0)navigation.current.zoomAt(nativePinch.zoom*scale,nativePinch.screen);
+  };
+  const gestureEnd=(e:Event)=>{if(nativePinch)e.preventDefault();nativePinch=null};
+  const blur=()=>{nativePinch=null};
+  el.addEventListener('wheel',wheel,{passive:false});
+  el.addEventListener('gesturestart',gestureStart,{passive:false});
+  el.addEventListener('gesturechange',gestureChange,{passive:false});
+  el.addEventListener('gestureend',gestureEnd,{passive:false});
+  window.addEventListener('blur',blur);
+  return()=>{el.removeEventListener('wheel',wheel);el.removeEventListener('gesturestart',gestureStart);el.removeEventListener('gesturechange',gestureChange);el.removeEventListener('gestureend',gestureEnd);window.removeEventListener('blur',blur)};
+ },[]);
+ useImperativeHandle(ref,()=>({fit:fitView,zoom:(f)=>zoomAt(viewRef.current.zoom*f),cancelDraft,exportImage:async()=>{
  if(loading||pdfError)throw new Error('Wait for the drawing to finish loading.');
  const clone=svg.current!.cloneNode(true) as SVGSVGElement;clone.setAttribute('xmlns','http://www.w3.org/2000/svg');clone.setAttribute('width',String(sheet.width));clone.setAttribute('height',String(sheet.height));clone.style.cssText='';clone.querySelectorAll('[data-draft],[data-cursor],[data-selection]').forEach(n=>n.remove());clone.querySelectorAll('[data-screen-scale]').forEach(n=>n.setAttribute('transform','scale(1)'));
  if(sheet.fileId){const bg=document.createElementNS('http://www.w3.org/2000/svg','image');bg.setAttribute('href',pdfCanvas.current!.toDataURL('image/png'));bg.setAttribute('width',String(sheet.width));bg.setAttribute('height',String(sheet.height));clone.insertBefore(bg,clone.firstChild)}
  const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob);
  try{const img=new Image();await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=()=>reject(new Error('Unable to export the drawing.'));img.src=url});const canvas=document.createElement('canvas'),factor=Math.min(3,3000/sheet.width);canvas.width=Math.ceil(sheet.width*factor);canvas.height=Math.ceil(sheet.height*factor);const ctx=canvas.getContext('2d')!;ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/png')}finally{URL.revokeObjectURL(url)}
  }}));
- function point(e:{clientX:number;clientY:number}):Point{const r=container.current!.getBoundingClientRect();return{x:(e.clientX-r.left-offset.x)/scale,y:(e.clientY-r.top-offset.y)/scale}}
+ function point(e:{clientX:number;clientY:number}):Point{const r=container.current!.getBoundingClientRect();return canvasPoint(viewRef.current,geometry,{x:e.clientX-r.left,y:e.clientY-r.top})}
  function exact(raw:Point,shift=false,anchor?:Point,exclude?:string){let p=clamp(raw),did=false;if(anchor&&(axis||shift))p=constrain(anchor,p);else if(snap&&!hideMarks){let best=9/scale;for(const m of markups){if(m.id===exclude||m.kind==='text'||m.kind==='pen')continue;for(const v of m.kind==='area'?areaPoints(m.points):m.points){const d=distance(v,p);if(d<best){best=d;p=v;did=true}}}if(chainRef.current.length>=3&&distance(p,chainRef.current[0])<12/scale){p=chainRef.current[0];did=true}}setSnapped(did);return p}
  function markup(kind:Markup['kind'],ps:Point[]):Markup{return{id:uid(),type:'markup',sheetId:sheet.id,kind,points:ps,color:tool==='calibrate'?'#199184':color,width:stroke,precision,visibility,author:name,created:new Date().toISOString()}}
  function sweep(p:Point){if(hideMarks)return;const from=eraseLast.current||p;let changed=false;for(const m of markups){if(m.editable===false||erasing.current.has(m.id)||pendingErase.current.has(m.id))continue;if(hitMarkup(m,sheet,from,p,12/scale,scale)){erasing.current.set(m.id,m);changed=true}}eraseLast.current=p;if(changed)setEraseTick(t=>t+1)}
@@ -58,8 +99,8 @@ const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,
  function start(e:React.PointerEvent<HTMLDivElement>){
  if((e.target as Element).closest('button,[data-ui]')||e.button>1)return;if(textRef.current)commitText();if(e.pointerType==='touch'&&penActive.current)return;if(e.pointerType==='pen')penActive.current=true;
  const raw=point(e);touches.current.set(e.pointerId,{x:e.clientX,y:e.clientY});e.currentTarget.setPointerCapture(e.pointerId);
- if(touches.current.size===2){const ts=[...touches.current.values()],r=container.current!.getBoundingClientRect(),center={x:(ts[0].x+ts[1].x)/2-r.left,y:(ts[0].y+ts[1].y)/2-r.top};pinch.current={distance:distance(ts[0],ts[1]),zoom,anchor:{x:(center.x-offset.x)/scale,y:(center.y-offset.y)/scale}};gesture.current=null;setDraftValue(null);erasing.current.clear();setEraseTick(t=>t+1);setActive(false);return}
- const base={id:e.pointerId,start:raw,screen:{x:e.clientX,y:e.clientY},pan};
+ if(touches.current.size===2){const ts=[...touches.current.values()],r=container.current!.getBoundingClientRect(),center={x:(ts[0].x+ts[1].x)/2-r.left,y:(ts[0].y+ts[1].y)/2-r.top};pinch.current={distance:Math.max(1,distance(ts[0],ts[1])),zoom:viewRef.current.zoom,anchor:canvasPoint(viewRef.current,geometry,center)};gesture.current=null;setDraftValue(null);erasing.current.clear();setEraseTick(t=>t+1);setActive(false);return}
+ const base={id:e.pointerId,start:raw,screen:{x:e.clientX,y:e.clientY},pan:viewRef.current.pan};
  if(!space&&e.button===0&&!hideMarks&&['hand','select'].includes(tool)){const photo=[...markups].reverse().find(m=>m.kind==='photo'&&hitMarkup(m,sheet,raw,raw,3/scale,scale));if(photo){props.onSelect(photo.id);gesture.current={...base,kind:'photo-open',original:photo};return}}
  if(tool==='hand'||space||e.button===1){gesture.current={...base,kind:'pan'};return}if(!inside(raw))return;
  if(tool==='select'){const m=hideMarks?undefined:[...markups].reverse().find(m=>hitMarkup(m,sheet,raw,raw,5/scale,scale));props.onSelect(m?.id||null);if(e.pointerType==='touch'&&!m)gesture.current={...base,kind:'pan'};return}
@@ -73,8 +114,8 @@ const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,
  function move(e:React.PointerEvent<HTMLDivElement>){
  if(e.pointerType==='touch'&&penActive.current)return;
  if(touches.current.has(e.pointerId))touches.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
- if(pinch.current){if(touches.current.size===2){const ts=[...touches.current.values()],pin=pinch.current,r=container.current!.getBoundingClientRect(),z=Math.min(24,Math.max(.25,pin.zoom*distance(ts[0],ts[1])/pin.distance)),ns=fit*z,c={x:(ts[0].x+ts[1].x)/2-r.left,y:(ts[0].y+ts[1].y)/2-r.top};setZoom(z);setPan({x:c.x-pin.anchor.x*ns-(bounds.w-sheet.width*ns)/2-30,y:c.y-pin.anchor.y*ns-(bounds.h-sheet.height*ns)/2-12})}return}
- const g=gesture.current,raw=point(e);if(g&&g.id!==e.pointerId)return;if(g?.kind==='photo-open'&&distance(g.screen,{x:e.clientX,y:e.clientY})>6)g.kind='pan';if(g?.kind==='pan'){setPan({x:g.pan.x+e.clientX-g.screen.x,y:g.pan.y+e.clientY-g.screen.y});return}
+ if(pinch.current){if(touches.current.size===2){const ts=[...touches.current.values()],pin=pinch.current,r=container.current!.getBoundingClientRect(),z=Math.min(24,Math.max(.25,pin.zoom*distance(ts[0],ts[1])/pin.distance)),ns=fit*z,c={x:(ts[0].x+ts[1].x)/2-r.left,y:(ts[0].y+ts[1].y)/2-r.top};setView({zoom:z,pan:{x:c.x-pin.anchor.x*ns-(bounds.w-sheet.width*ns)/2-30,y:c.y-pin.anchor.y*ns-(bounds.h-sheet.height*ns)/2-12}})}return}
+ const g=gesture.current,raw=point(e);if(g&&g.id!==e.pointerId)return;if(g?.kind==='photo-open'&&distance(g.screen,{x:e.clientX,y:e.clientY})>6)g.kind='pan';if(g?.kind==='pan'){setView({...viewRef.current,pan:{x:g.pan.x+e.clientX-g.screen.x,y:g.pan.y+e.clientY-g.screen.y}});return}
  const anchor=g?.kind==='edit'&&g.original?g.original.points[g.vertex===0?1:(g.vertex||1)-1]:chainRef.current.at(-1),p=((precisionTool&&!['pin','photo'].includes(tool))||g?.kind==='edit')?exact(raw,e.shiftKey,anchor,g?.original?.id):clamp(raw);setCursor(p);
  if(g?.kind==='erase'){sweep(p);return}
  if(g?.kind==='edit'&&draftRef.current){const m=draftRef.current;setDraftValue({...m,points:m.points.map((v,i)=>i===g.vertex?p:v)});return}
@@ -113,7 +154,7 @@ const DrawingCanvas=forwardRef<CanvasHandle,Props>(function DrawingCanvas(props,
  const textControlWidth=textDraft?262:164,controlX=Math.max(8,Math.min(bounds.w-textControlWidth-8,textDraft?editorX:offset.x+(textBox?.x||0)*scale));
  const noteBottom=textDraft?editorY+editorHeight:offset.y+((textBox?.y||0)+(textBox?.height||0))*scale;
  const controlY=Math.max(50,Math.min(bounds.h-110,noteBottom+46<bounds.h-75?noteBottom+8:(textDraft?editorY:offset.y+(textBox?.y||0)*scale)-44));
- const hint=tool==='area'?(props.areaMode==='rectangle'?'Drag opposite corners to measure a rectangle':'Tap corners · Close at the first point'):tool==='measure'||tool==='calibrate'?chain.length?'Place the second point':'Place the first point · Drag also works':tool==='eraser'?'Drag across markups to erase · Ctrl Z to restore':tool==='photo'?'Tap to place photo · Two fingers to pan':tool==='pin'?'Move the pin · Click to drop · Touch: drag and release':tool==='text'?'Tap to place a callout · Double-click a note to edit':tool==='pen'?'Draw to mark up · Two fingers to pan':'Scroll to zoom · Space to pan';
+ const hint=tool==='area'?(props.areaMode==='rectangle'?'Drag opposite corners to measure a rectangle':'Tap corners · Close at the first point'):tool==='measure'||tool==='calibrate'?chain.length?'Place the second point':'Place the first point · Drag also works':tool==='eraser'?'Drag across markups to erase · Ctrl Z to restore':tool==='photo'?'Tap to place photo · Two fingers to pan':tool==='pin'?'Move the pin · Click to drop · Touch: drag and release':tool==='text'?'Tap to place a callout · Double-click a note to edit':tool==='pen'?'Draw to mark up · Two fingers to pan':'Two fingers to pan · Pinch to zoom';
  return <div ref={container} className={'drawing-stage tool-'+(space?'hand':tool)} onDoubleClick={e=>{if(tool!=='select'&&tool!=='text')return;const p=point(e),m=[...markups].reverse().find(m=>m.kind==='text'&&m.editable!==false&&hitMarkup(m,sheet,p,p,5/scale));if(m)editText(m.points[0],m)}} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={e=>{touches.current.delete(e.pointerId);if(e.pointerType==='pen')penActive.current=false;cancelDraft();if(!touches.current.size)pinch.current=null}} onPointerLeave={()=>{if(!gesture.current)setCursor(null)}} onContextMenu={e=>e.preventDefault()}>
  <div className="drawing-paper" style={{width:sheet.width,height:sheet.height,transform:`translate(${offset.x}px,${offset.y}px) scale(${scale})`}}>
  {sheet.fileId&&<canvas ref={pdfCanvas} className="pdf-layer" style={{width:sheet.width,height:sheet.height}}/>}
