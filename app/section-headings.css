@@ -1,0 +1,69 @@
+/* All project sections use the same heading as Plans and Photos. */
+.overview-heading,
+.board-header,
+.meeting-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 0 0 28px;
+}
+
+:is(.overview-heading, .board-header, .meeting-list-header) > div:first-child {
+  min-width: 0;
+}
+
+:is(.overview-heading, .board-header, .meeting-list-header) h1 {
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 1.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -.02em;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+:is(.overview-heading, .board-header, .meeting-list-header) p {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: .875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.overview-page,
+.task-board,
+.meetings-workspace:not(.meeting-open) {
+  padding: 38px clamp(22px, 4vw, 64px) 60px;
+}
+
+@media (max-width: 1000px) {
+  .overview-page,
+  .task-board,
+  .meetings-workspace:not(.meeting-open) {
+    padding: 25px 24px 45px;
+  }
+}
+
+@media (max-width: 760px) {
+  .overview-page,
+  .task-board,
+  .meetings-workspace:not(.meeting-open) {
+    padding: 23px 16px 40px;
+  }
+
+  .overview-heading,
+  .board-header,
+  .meeting-list-header {
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+
+  :is(.overview-heading, .board-header, .meeting-list-header) h1 {
+    font-size: 1.5625rem;
+  }
+}
